@@ -1,9 +1,19 @@
-fastapi
-uvicorn[standard]
-google-cloud-storage
-google-cloud-pubsub
-google-cloud-aiplatform
-google-cloud-secret-manager
-psycopg2-binary # For PostgreSQL client
-pypdf # Or another PDF parsing library like pdfminer.six
-python-dotenv # For local development
+ fastapi
+ uvicorn[standard]
+ google-cloud-storage
+ google-cloud-pubsub
+google-cloud-aiplatform>=1.40.0
+ google-cloud-secret-manager
+ psycopg2-binary # For PostgreSQL client
+ pypdf # Or another PDF parsing library like pdfminer.six
+ python-dotenv # For local development
+ requests
+ tenacity
+ httpx
+# Note: the 'vertex-ai' package is not published on PyPI in some environments.
+# Use 'google-cloud-aiplatform' or install the official GenAI client if required.
+google-genai>=0.7.0
+ # Note: the 'vertex-ai' package is not published on PyPI in some environments.
+ # Use 'google-cloud-aiplatform' or install the official GenAI client if required.
+# Note: the 'vertex-ai' package is not published on PyPI in some environments.
+# Use 'google-cloud-aiplatform' or install the official GenAI client if required.

@@ -1,0 +1,607 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Document Upload & Confirmation</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+        }
+        .container {
+            background: white;
+            border-radius: 12px;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+            max-width: 600px;
+            width: 100%;
+            overflow: hidden;
+        }
+        .header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 30px;
+            text-align: center;
+        }
+        .header h1 {
+            font-size: 28px;
+            margin-bottom: 8px;
+        }
+        .header p {
+            font-size: 14px;
+            opacity: 0.9;
+        }
+        .content {
+            padding: 30px;
+        }
+        .section {
+            margin-bottom: 25px;
+        }
+        .section h2 {
+            font-size: 16px;
+            font-weight: 600;
+            color: #333;
+            margin-bottom: 15px;
+            display: flex;
+            align-items: center;
+        }
+        .section h2 span {
+            display: inline-block;
+            width: 24px;
+            height: 24px;
+            background: #667eea;
+            color: white;
+            border-radius: 50%;
+            text-align: center;
+            line-height: 24px;
+            font-size: 12px;
+            margin-right: 10px;
+        }
+        .upload-area {
+            border: 2px dashed #ddd;
+            border-radius: 8px;
+            padding: 30px;
+            text-align: center;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            background: #f9f9f9;
+        }
+        .upload-area:hover, .upload-area.dragover {
+            border-color: #667eea;
+            background: #f0f0ff;
+        }
+        .upload-area input[type="file"] {
+            display: none;
+        }
+        .upload-icon {
+            font-size: 36px;
+            margin-bottom: 10px;
+        }
+        .upload-text {
+            color: #666;
+            font-size: 14px;
+            line-height: 1.6;
+        }
+        .upload-text strong {
+            color: #333;
+        }
+        .file-info {
+            margin-top: 10px;
+            padding: 10px;
+            background: #e8f5e9;
+            border-radius: 4px;
+            color: #2e7d32;
+            font-size: 13px;
+            display: none;
+        }
+        .form-group {
+            margin-bottom: 18px;
+        }
+        .form-group label {
+            display: block;
+            font-weight: 500;
+            color: #333;
+            margin-bottom: 6px;
+            font-size: 14px;
+        }
+        .form-group input,
+        .form-group select {
+            width: 100%;
+            padding: 10px 12px;
+            border: 1px solid #ddd;
+            border-radius: 6px;
+            font-size: 14px;
+            font-family: inherit;
+            transition: border-color 0.2s;
+        }
+        .form-group input:focus,
+        .form-group select:focus {
+            outline: none;
+            border-color: #667eea;
+            box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+        }
+        .confidence-badge {
+            display: inline-block;
+            font-size: 11px;
+            padding: 3px 8px;
+            border-radius: 3px;
+            margin-left: 8px;
+            font-weight: 500;
+        }
+        .confidence-high {
+            background: #c8e6c9;
+            color: #2e7d32;
+        }
+        .confidence-medium {
+            background: #ffe0b2;
+            color: #e65100;
+        }
+        .confidence-low {
+            background: #ffcdd2;
+            color: #c62828;
+        }
+        .loading {
+            display: none;
+            text-align: center;
+            color: #667eea;
+            font-size: 14px;
+            margin: 15px 0;
+        }
+        .loading.active {
+            display: block;
+        }
+        .spinner {
+            display: inline-block;
+            width: 16px;
+            height: 16px;
+            border: 2px solid #ddd;
+            border-top-color: #667eea;
+            border-radius: 50%;
+            animation: spin 0.8s linear infinite;
+            margin-right: 8px;
+            vertical-align: middle;
+        }
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+        .buttons {
+            display: flex;
+            gap: 12px;
+            margin-top: 25px;
+        }
+        button {
+            flex: 1;
+            padding: 12px 20px;
+            border: none;
+            border-radius: 6px;
+            font-size: 14px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+        .btn-primary {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+        }
+        .btn-primary:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 20px rgba(102, 126, 234, 0.4);
+        }
+        .btn-primary:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+            transform: none;
+        }
+        .btn-secondary {
+            background: #f0f0f0;
+            color: #666;
+        }
+        .btn-secondary:hover {
+            background: #e0e0e0;
+        }
+        .btn-danger {
+            background: #ff6b6b;
+            color: white;
+        }
+        .btn-danger:hover {
+            background: #ff5252;
+        }
+        .hidden {
+            display: none;
+        }
+        .status-message {
+            padding: 12px;
+            border-radius: 6px;
+            margin-bottom: 20px;
+            font-size: 14px;
+        }
+        .status-success {
+            background: #c8e6c9;
+            color: #2e7d32;
+            border: 1px solid #81c784;
+        }
+        .status-error {
+            background: #ffcdd2;
+            color: #c62828;
+            border: 1px solid #ef5350;
+        }
+        .status-info {
+            background: #e3f2fd;
+            color: #1565c0;
+            border: 1px solid #64b5f6;
+        }
+        .undo-prompt {
+            background: #fff3e0;
+            border: 1px solid #ffb74d;
+            border-radius: 6px;
+            padding: 16px;
+            margin-bottom: 20px;
+        }
+        .undo-prompt h3 {
+            color: #e65100;
+            font-size: 14px;
+            margin-bottom: 12px;
+        }
+        .undo-options {
+            display: flex;
+            gap: 10px;
+        }
+        .undo-options button {
+            flex: 1;
+        }
+        .metadata-info {
+            background: #f9f9f9;
+            border: 1px solid #e0e0e0;
+            border-radius: 6px;
+            padding: 12px;
+            font-size: 13px;
+            color: #666;
+            margin-top: 10px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>📄 Document Upload</h1>
+            <p>Upload and classify your SOP documents</p>
+        </div>
+
+        <div class="content">
+            <!-- Status Messages -->
+            <div id="statusMessage" class="status-message hidden"></div>
+
+            <!-- Step 1: Upload -->
+            <div id="uploadSection" class="section">
+                <h2><span>1</span> Upload Document</h2>
+                <div class="upload-area" id="uploadArea">
+                    <input type="file" id="fileInput" accept=".pdf,.txt,.md" />
+                    <div class="upload-icon">📁</div>
+                    <div class="upload-text">
+                        <strong>Click to upload</strong> or drag and drop<br>
+                        PDF, TXT, or Markdown files (max 50MB)
+                    </div>
+                    <div class="file-info" id="fileInfo"></div>
+                </div>
+            </div>
+
+            <!-- Loading -->
+            <div class="loading" id="extractingLoader">
+                <div class="spinner"></div>
+                Extracting metadata from document...
+            </div>
+
+            <!-- Step 2: Confirm Metadata -->
+            <div id="metadataSection" class="section hidden">
+                <h2><span>2</span> Confirm Metadata</h2>
+                <div class="metadata-info">
+                    AI extracted metadata from your document. Review and edit if needed.
+                </div>
+
+                <div class="form-group">
+                    <label>
+                        Title
+                        <span class="confidence-badge" id="confidenceTitle"></span>
+                    </label>
+                    <input type="text" id="title" placeholder="Document title" />
+                </div>
+
+                <div class="form-group">
+                    <label>
+                        Department
+                        <span class="confidence-badge" id="confidenceDepartment"></span>
+                    </label>
+                    <input type="text" id="department" placeholder="Department" />
+                </div>
+
+                <div class="form-group">
+                    <label>Author</label>
+                    <input type="text" id="author" placeholder="Author name" />
+                </div>
+
+                <div class="form-group">
+                    <label>
+                        Document Type
+                        <span class="confidence-badge" id="confidenceType"></span>
+                    </label>
+                    <input type="text" id="type" placeholder="e.g., Standard Operating Procedure" />
+                </div>
+            </div>
+
+            <!-- Step 3: Undo Prompt -->
+            <div id="undoPromptSection" class="section hidden">
+                <div class="undo-prompt">
+                    <h3>Document sent successfully! ✓</h3>
+                    <p style="margin-bottom: 12px; font-size: 13px;">Need to make changes?</p>
+                    <div class="undo-options">
+                        <button class="btn-secondary" id="btnEdit">✎ Edit Metadata</button>
+                        <button class="btn-danger" id="btnDiscard">🗑 Discard Document</button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Buttons -->
+            <div class="buttons">
+                <button class="btn-secondary" id="btnReset">Reset</button>
+                <button class="btn-primary" id="btnSend" disabled>Send Document</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const API_BASE = window.location.origin;
+        const getAuthToken = () => localStorage.getItem('api_key') || '';
+
+        let currentSession = null;
+        let uploadedFile = null;
+
+        const elements = {
+            uploadArea: document.getElementById('uploadArea'),
+            fileInput: document.getElementById('fileInput'),
+            fileInfo: document.getElementById('fileInfo'),
+            extractingLoader: document.getElementById('extractingLoader'),
+            uploadSection: document.getElementById('uploadSection'),
+            metadataSection: document.getElementById('metadataSection'),
+            undoPromptSection: document.getElementById('undoPromptSection'),
+            statusMessage: document.getElementById('statusMessage'),
+            title: document.getElementById('title'),
+            department: document.getElementById('department'),
+            author: document.getElementById('author'),
+            type: document.getElementById('type'),
+            btnSend: document.getElementById('btnSend'),
+            btnReset: document.getElementById('btnReset'),
+            btnEdit: document.getElementById('btnEdit'),
+            btnDiscard: document.getElementById('btnDiscard'),
+            confidenceTitle: document.getElementById('confidenceTitle'),
+            confidenceDepartment: document.getElementById('confidenceDepartment'),
+            confidenceType: document.getElementById('confidenceType'),
+        };
+
+        // Drag & drop
+        ['dragenter', 'dragover', 'dragleave', 'drop'].forEach(eventName => {
+            elements.uploadArea.addEventListener(eventName, preventDefaults, false);
+        });
+
+        function preventDefaults(e) {
+            e.preventDefault();
+            e.stopPropagation();
+        }
+
+        ['dragenter', 'dragover'].forEach(eventName => {
+            elements.uploadArea.addEventListener(eventName, () => elements.uploadArea.classList.add('dragover'));
+        });
+
+        ['dragleave', 'drop'].forEach(eventName => {
+            elements.uploadArea.addEventListener(eventName, () => elements.uploadArea.classList.remove('dragover'));
+        });
+
+        elements.uploadArea.addEventListener('drop', (e) => {
+            const files = e.dataTransfer.files;
+            if (files.length) handleFileSelect(files[0]);
+        });
+
+        elements.uploadArea.addEventListener('click', () => elements.fileInput.click());
+        elements.fileInput.addEventListener('change', (e) => {
+            if (e.target.files.length) handleFileSelect(e.target.files[0]);
+        });
+
+        async function handleFileSelect(file) {
+            if (!['application/pdf', 'text/plain', 'text/markdown', 'application/x-markdown'].includes(file.type) && !file.name.match(/\.(pdf|txt|md)$/i)) {
+                showStatus('Only PDF, TXT, and Markdown files are supported', 'error');
+                return;
+            }
+
+            if (file.size > 50 * 1024 * 1024) {
+                showStatus('File is too large (max 50MB)', 'error');
+                return;
+            }
+
+            uploadedFile = file;
+            elements.fileInfo.textContent = `✓ ${file.name} (${(file.size / 1024).toFixed(1)} KB)`;
+            elements.fileInfo.style.display = 'block';
+
+            // Extract metadata
+            await uploadAndExtract(file);
+        }
+
+        async function uploadAndExtract(file) {
+            elements.extractingLoader.classList.add('active');
+            elements.metadataSection.classList.add('hidden');
+
+            const formData = new FormData();
+            formData.append('file', file);
+
+            try {
+                const response = await fetch(`${API_BASE}/document-upload`, {
+                    method: 'POST',
+                    headers: { 'Authorization': getAuthToken() },
+                    body: formData
+                });
+
+                if (!response.ok) {
+                    const error = await response.json();
+                    throw new Error(error.detail || 'Upload failed');
+                }
+
+                const data = await response.json();
+                currentSession = data.session_id;
+
+                // Populate form
+                elements.title.value = data.extracted_title;
+                elements.department.value = data.extracted_department;
+                elements.author.value = data.extracted_author;
+                elements.type.value = data.extracted_type;
+
+                // Show confidence badges
+                elements.confidenceTitle.textContent = confidenceBadge(data.ai_confidence.title);
+                elements.confidenceTitle.className = `confidence-badge ${confidenceClass(data.ai_confidence.title)}`;
+                elements.confidenceDepartment.textContent = confidenceBadge(data.ai_confidence.department);
+                elements.confidenceDepartment.className = `confidence-badge ${confidenceClass(data.ai_confidence.department)}`;
+                elements.confidenceType.textContent = confidenceBadge(data.ai_confidence.type);
+                elements.confidenceType.className = `confidence-badge ${confidenceClass(data.ai_confidence.type)}`;
+
+                elements.extractingLoader.classList.remove('active');
+                elements.metadataSection.classList.remove('hidden');
+                elements.btnSend.disabled = false;
+
+                showStatus('Metadata extracted! Review and edit as needed.', 'info');
+            } catch (error) {
+                elements.extractingLoader.classList.remove('active');
+                showStatus(error.message, 'error');
+            }
+        }
+
+        function confidenceBadge(score) {
+            if (score >= 0.8) return `High (${(score * 100).toFixed(0)}%)`;
+            if (score >= 0.6) return `Medium (${(score * 100).toFixed(0)}%)`;
+            return `Low (${(score * 100).toFixed(0)}%)`;
+        }
+
+        function confidenceClass(score) {
+            if (score >= 0.8) return 'confidence-high';
+            if (score >= 0.6) return 'confidence-medium';
+            return 'confidence-low';
+        }
+
+        elements.btnSend.addEventListener('click', sendDocument);
+
+        async function sendDocument() {
+            if (!currentSession) return;
+
+            elements.btnSend.disabled = true;
+
+            try {
+                // Patch metadata
+                const patchResponse = await fetch(`${API_BASE}/document-uploads/${currentSession}/metadata`, {
+                    method: 'PATCH',
+                    headers: {
+                        'Authorization': getAuthToken(),
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        title: elements.title.value,
+                        department: elements.department.value,
+                        author: elements.author.value,
+                        type: elements.type.value
+                    })
+                });
+
+                if (!patchResponse.ok) throw new Error('Failed to update metadata');
+
+                // Confirm upload
+                const confirmResponse = await fetch(`${API_BASE}/document-uploads/${currentSession}/confirm`, {
+                    method: 'POST',
+                    headers: { 'Authorization': getAuthToken() }
+                });
+
+                if (!confirmResponse.ok) throw new Error('Failed to confirm upload');
+
+                showStatus('Document sent successfully!', 'success');
+                elements.metadataSection.classList.add('hidden');
+                elements.undoPromptSection.classList.remove('hidden');
+                elements.btnSend.style.display = 'none';
+                elements.btnReset.style.display = 'none';
+            } catch (error) {
+                showStatus(error.message, 'error');
+                elements.btnSend.disabled = false;
+            }
+        }
+
+        elements.btnEdit.addEventListener('click', async () => {
+            try {
+                const response = await fetch(`${API_BASE}/document-uploads/${currentSession}/undo-edit`, {
+                    method: 'POST',
+                    headers: { 'Authorization': getAuthToken() }
+                });
+
+                if (!response.ok) throw new Error('Failed to load previous metadata');
+
+                const data = await response.json();
+                elements.title.value = data.title || '';
+                elements.department.value = data.department || '';
+                elements.author.value = data.author || '';
+                elements.type.value = data.type || '';
+
+                elements.undoPromptSection.classList.add('hidden');
+                elements.metadataSection.classList.remove('hidden');
+                elements.btnSend.style.display = 'flex';
+                elements.btnReset.style.display = 'flex';
+                elements.btnSend.disabled = false;
+
+                showStatus('Metadata reloaded for editing', 'info');
+            } catch (error) {
+                showStatus(error.message, 'error');
+            }
+        });
+
+        elements.btnDiscard.addEventListener('click', async () => {
+            if (!confirm('Are you sure you want to permanently delete this document? This cannot be undone.')) return;
+
+            try {
+                const response = await fetch(`${API_BASE}/document-uploads/${currentSession}`, {
+                    method: 'DELETE',
+                    headers: { 'Authorization': getAuthToken() }
+                });
+
+                if (!response.ok) throw new Error('Failed to discard document');
+
+                showStatus('Document permanently deleted', 'success');
+                resetForm();
+            } catch (error) {
+                showStatus(error.message, 'error');
+            }
+        });
+
+        elements.btnReset.addEventListener('click', resetForm);
+
+        function resetForm() {
+            currentSession = null;
+            uploadedFile = null;
+            elements.fileInput.value = '';
+            elements.fileInfo.style.display = 'none';
+            elements.title.value = '';
+            elements.department.value = '';
+            elements.author.value = '';
+            elements.type.value = '';
+            elements.metadataSection.classList.add('hidden');
+            elements.undoPromptSection.classList.add('hidden');
+            elements.uploadSection.classList.remove('hidden');
+            elements.btnSend.style.display = 'flex';
+            elements.btnReset.style.display = 'flex';
+            elements.btnSend.disabled = true;
+            showStatus('', '');
+        }
+
+        function showStatus(message, type) {
+            elements.statusMessage.textContent = message;
+            elements.statusMessage.className = `status-message ${type === 'error' ? 'status-error' : type === 'success' ? 'status-success' : type === 'info' ? 'status-info' : 'hidden'}`;
+        }
+    </script>
+</body>
+</html>

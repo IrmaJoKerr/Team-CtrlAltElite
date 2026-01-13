@@ -1,0 +1,47 @@
+Test run report
+=================
+
+smoke_test_vertex.py: Smoke: Vertex unit test (mocked)
+  Status: PASS
+  Return code: 0
+  Duration: 2.49s
+  Log: /home/bleow/Desktop/AmbankHackathon2026/smoke_tests/outputs/smoke_test_vertex.py.log
+  Sample tail:
+    WARNING:root:No generative model or endpoint configured; skipping AI metadata suggestions
+    WARNING:root:No generative model or endpoint configured; skipping AI metadata suggestions
+    WARNING:root:No generative model or endpoint configured; skipping AI metadata suggestions
+    UNMOCK=1 set — using real HTTP helpers and auth from module
+    Embedding call for texts=['EMB_NORMAL: Hello world'] raised: RuntimeError: No embedding configuration: set EMBEDDING_ENDPOINT or EMBEDDING_MODEL_ID
+    Embedding call for texts=['EMB_TIMEOUT_ONCE: TIMEOUT_ONCE_EMB'] raised: RuntimeError: No embedding configuration: set EMBEDDING_ENDPOINT or EMBEDDING_MODEL_ID
+    Embedding call for texts=['EMB_TIMEOUT_ALWAYS: TIMEOUT_ALWAYS_EMB'] raised: RuntimeError: No embedding configuration: set EMBEDDING_ENDPOINT or EMBEDDING_MODEL_ID
+    Generative success for text='GEN_NORMAL: simple document text': {'title': {'suggested_value': None, 'justification': 'No generative endpoint configured.', 'confidence_score': 0.0}, 'department': {'suggested_value': None, 'justification': 'No generative endpoint configured.', 'confidence_score': 0.0}, 'process_type': {'suggested_value': None, 'justification': 'No generative endpoint configured.', 'confidence_score': 0.0}, 'status': {'suggested_value': None, 'justification': 'No generative endpoint configured.', 'confidence_score': 0.0}}
+    Generative success for text='GEN_TIMEOUT_ONCE: TIMEOUT_ONCE_GEN RETUR': {'title': {'suggested_value': None, 'justification': 'No generative endpoint configured.', 'confidence_score': 0.0}, 'department': {'suggested_value': None, 'justification': 'No generative endpoint configured.', 'confidence_score': 0.0}, 'process_type': {'suggested_value': None, 'justification': 'No generative endpoint configured.', 'confidence_score': 0.0}, 'status': {'suggested_value': None, 'justification': 'No generative endpoint configured.', 'confidence_score': 0.0}}
+    Generative success for text='GEN_TIMEOUT_ALWAYS: TIMEOUT_ALWAYS_GEN R': {'title': {'suggested_value': None, 'justification': 'No generative endpoint configured.', 'confidence_score': 0.0}, 'department': {'suggested_value': None, 'justification': 'No generative endpoint configured.', 'confidence_score': 0.0}, 'process_type': {'suggested_value': None, 'justification': 'No generative endpoint configured.', 'confidence_score': 0.0}, 'status': {'suggested_value': None, 'justification': 'No generative endpoint configured.', 'confidence_score': 0.0}}
+
+stress_endpoints.py: Stress: endpoints stress test (mocked)
+  Status: PASS
+  Return code: 0
+  Duration: 5.17s
+  Log: /home/bleow/Desktop/AmbankHackathon2026/smoke_tests/outputs/stress_endpoints.py.log
+  Sample tail:
+    (5, 'exception', '404 Secret [projects/108141920718/secrets/docintel-database-secret] not found or has no versions.')
+    (1, 'exception', '404 Secret [projects/108141920718/secrets/docintel-database-secret] not found or has no versions.')
+    (0, 'exception', '404 Secret [projects/108141920718/secrets/docintel-database-secret] not found or has no versions.')
+    (10, 'exception', '404 Secret [projects/108141920718/secrets/docintel-database-secret] not found or has no versions.')
+    (4, 'exception', '404 Secret [projects/108141920718/secrets/docintel-database-secret] not found or has no versions.')
+    (9, 'exception', '404 Secret [projects/108141920718/secrets/docintel-database-secret] not found or has no versions.')
+    RAG total 40 elapsed 2.103973865509033
+    PROCESS results:
+    (2, 500, {'detail': "An unexpected error occurred: 403 GET https://storage.googleapis.com/download/storage/v1/b/mock-bucket/o/testfile.txt?alt=media: spenderz123@gmail.com does not have storage.objects.get access to the Google Cloud Storage object. Permission &#39;storage.objects.get&#39; denied on resource (or it may not exist).: ('Request failed with status code', 403, 'Expected one of', <HTTPStatus.OK: 200>, <HTTPStatus.PARTIAL_CONTENT: 206>)"})
+    (0, 500, {'detail': "An unexpected error occurred: 403 GET https://storage.googleapis.com/download/storage/v1/b/mock-bucket/o/testfile.txt?alt=media: spenderz123@gmail.com does not have storage.objects.get access to the Google Cloud Storage object. Permission &#39;storage.objects.get&#39; denied on resource (or it may not exist).: ('Request failed with status code', 403, 'Expected one of', <HTTPStatus.OK: 200>, <HTTPStatus.PARTIAL_CONTENT: 206>)"})
+    (6, 500, {'detail': "An unexpected error occurred: 403 GET https://storage.googleapis.com/download/storage/v1/b/mock-bucket/o/testfile.txt?alt=media: spenderz123@gmail.com does not have storage.objects.get access to the Google Cloud Storage object. Permission &#39;storage.objects.get&#39; denied on resource (or it may not exist).: ('Request failed with status code', 403, 'Expected one of', <HTTPStatus.OK: 200>, <HTTPStatus.PARTIAL_CONTENT: 206>)"})
+    (5, 500, {'detail': "An unexpected error occurred: 403 GET https://storage.googleapis.com/download/storage/v1/b/mock-bucket/o/testfile.txt?alt=media: spenderz123@gmail.com does not have storage.objects.get access to the Google Cloud Storage object. Permission &#39;storage.objects.get&#39; denied on resource (or it may not exist).: ('Request failed with status code', 403, 'Expected one of', <HTTPStatus.OK: 200>, <HTTPStatus.PARTIAL_CONTENT: 206>)"})
+    (3, 500, {'detail': "An unexpected error occurred: 403 GET https://storage.googleapis.com/download/storage/v1/b/mock-bucket/o/testfile.txt?alt=media: spenderz123@gmail.com does not have storage.objects.get access to the Google Cloud Storage object. Permission &#39;storage.objects.get&#39; denied on resource (or it may not exist).: ('Request failed with status code', 403, 'Expected one of', <HTTPStatus.OK: 200>, <HTTPStatus.PARTIAL_CONTENT: 206>)"})
+    (7, 500, {'detail': "An unexpected error occurred: 403 GET https://storage.googleapis.com/download/storage/v1/b/mock-bucket/o/testfile.txt?alt=media: spenderz123@gmail.com does not have storage.objects.get access to the Google Cloud Storage object. Permission &#39;storage.objects.get&#39; denied on resource (or it may not exist).: ('Request failed with status code', 403, 'Expected one of', <HTTPStatus.OK: 200>, <HTTPStatus.PARTIAL_CONTENT: 206>)"})
+    (8, 500, {'detail': "An unexpected error occurred: 403 GET https://storage.googleapis.com/download/storage/v1/b/mock-bucket/o/testfile.txt?alt=media: spenderz123@gmail.com does not have storage.objects.get access to the Google Cloud Storage object. Permission &#39;storage.objects.get&#39; denied on resource (or it may not exist).: ('Request failed with status code', 403, 'Expected one of', <HTTPStatus.OK: 200>, <HTTPStatus.PARTIAL_CONTENT: 206>)"})
+    (9, 500, {'detail': "An unexpected error occurred: 403 GET https://storage.googleapis.com/download/storage/v1/b/mock-bucket/o/testfile.txt?alt=media: spenderz123@gmail.com does not have storage.objects.get access to the Google Cloud Storage object. Permission &#39;storage.objects.get&#39; denied on resource (or it may not exist).: ('Request failed with status code', 403, 'Expected one of', <HTTPStatus.OK: 200>, <HTTPStatus.PARTIAL_CONTENT: 206>)"})
+    (4, 500, {'detail': "An unexpected error occurred: 403 GET https://storage.googleapis.com/download/storage/v1/b/mock-bucket/o/testfile.txt?alt=media: spenderz123@gmail.com does not have storage.objects.get access to the Google Cloud Storage object. Permission &#39;storage.objects.get&#39; denied on resource (or it may not exist).: ('Request failed with status code', 403, 'Expected one of', <HTTPStatus.OK: 200>, <HTTPStatus.PARTIAL_CONTENT: 206>)"})
+    (1, 500, {'detail': "An unexpected error occurred: 403 GET https://storage.googleapis.com/download/storage/v1/b/mock-bucket/o/testfile.txt?alt=media: spenderz123@gmail.com does not have storage.objects.get access to the Google Cloud Storage object. Permission &#39;storage.objects.get&#39; denied on resource (or it may not exist).: ('Request failed with status code', 403, 'Expected one of', <HTTPStatus.OK: 200>, <HTTPStatus.PARTIAL_CONTENT: 206>)"})
+    PROCESS total 10 elapsed 0.5486981868743896
+    Stress test complete
+

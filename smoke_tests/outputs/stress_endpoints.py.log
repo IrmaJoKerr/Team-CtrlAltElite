@@ -1,0 +1,888 @@
+WARNING:urllib3.connectionpool:Connection pool is full, discarding connection: oauth2.googleapis.com. Connection pool size: 10
+WARNING:urllib3.connectionpool:Connection pool is full, discarding connection: oauth2.googleapis.com. Connection pool size: 10
+WARNING:urllib3.connectionpool:Connection pool is full, discarding connection: oauth2.googleapis.com. Connection pool size: 10
+WARNING:urllib3.connectionpool:Connection pool is full, discarding connection: oauth2.googleapis.com. Connection pool size: 10
+WARNING:urllib3.connectionpool:Connection pool is full, discarding connection: oauth2.googleapis.com. Connection pool size: 10
+WARNING:urllib3.connectionpool:Connection pool is full, discarding connection: oauth2.googleapis.com. Connection pool size: 10
+WARNING:urllib3.connectionpool:Connection pool is full, discarding connection: oauth2.googleapis.com. Connection pool size: 10
+WARNING:urllib3.connectionpool:Connection pool is full, discarding connection: oauth2.googleapis.com. Connection pool size: 10
+WARNING:urllib3.connectionpool:Connection pool is full, discarding connection: oauth2.googleapis.com. Connection pool size: 10
+WARNING:urllib3.connectionpool:Connection pool is full, discarding connection: oauth2.googleapis.com. Connection pool size: 10
+ERROR:root:Failed to retrieve secret 'docintel-database-secret': 404 Secret [projects/108141920718/secrets/docintel-database-secret] not found or has no versions.
+ERROR:root:Failed to retrieve secret 'docintel-database-secret': 404 Secret [projects/108141920718/secrets/docintel-database-secret] not found or has no versions.
+ERROR:root:Failed to retrieve secret 'docintel-database-secret': 404 Secret [projects/108141920718/secrets/docintel-database-secret] not found or has no versions.
+ERROR:root:Failed to retrieve secret 'docintel-database-secret': 404 Secret [projects/108141920718/secrets/docintel-database-secret] not found or has no versions.
+ERROR:root:Failed to retrieve secret 'docintel-database-secret': 404 Secret [projects/108141920718/secrets/docintel-database-secret] not found or has no versions.
+ERROR:root:Failed to retrieve secret 'docintel-database-secret': 404 Secret [projects/108141920718/secrets/docintel-database-secret] not found or has no versions.
+ERROR:root:Failed to retrieve secret 'docintel-database-secret': 404 Secret [projects/108141920718/secrets/docintel-database-secret] not found or has no versions.
+ERROR:root:Failed to retrieve secret 'docintel-database-secret': 404 Secret [projects/108141920718/secrets/docintel-database-secret] not found or has no versions.
+ERROR:root:Failed to retrieve secret 'docintel-database-secret': 404 Secret [projects/108141920718/secrets/docintel-database-secret] not found or has no versions.
+ERROR:root:Failed to retrieve secret 'docintel-database-secret': 404 Secret [projects/108141920718/secrets/docintel-database-secret] not found or has no versions.
+ERROR:root:Failed to retrieve secret 'docintel-database-secret': 404 Secret [projects/108141920718/secrets/docintel-database-secret] not found or has no versions.
+ERROR:root:Failed to retrieve secret 'docintel-database-secret': 404 Secret [projects/108141920718/secrets/docintel-database-secret] not found or has no versions.
+ERROR:root:Failed to retrieve secret 'docintel-database-secret': 404 Secret [projects/108141920718/secrets/docintel-database-secret] not found or has no versions.
+ERROR:root:Failed to retrieve secret 'docintel-database-secret': 404 Secret [projects/108141920718/secrets/docintel-database-secret] not found or has no versions.
+ERROR:root:Failed to retrieve secret 'docintel-database-secret': 404 Secret [projects/108141920718/secrets/docintel-database-secret] not found or has no versions.
+ERROR:root:Failed to retrieve secret 'docintel-database-secret': 404 Secret [projects/108141920718/secrets/docintel-database-secret] not found or has no versions.
+ERROR:root:Failed to retrieve secret 'docintel-database-secret': 404 Secret [projects/108141920718/secrets/docintel-database-secret] not found or has no versions.
+ERROR:root:Failed to retrieve secret 'docintel-database-secret': 404 Secret [projects/108141920718/secrets/docintel-database-secret] not found or has no versions.
+ERROR:root:Failed to retrieve secret 'docintel-database-secret': 404 Secret [projects/108141920718/secrets/docintel-database-secret] not found or has no versions.
+ERROR:root:Failed to retrieve secret 'docintel-database-secret': 404 Secret [projects/108141920718/secrets/docintel-database-secret] not found or has no versions.
+ERROR:root:Failed to retrieve secret 'docintel-database-secret': 404 Secret [projects/108141920718/secrets/docintel-database-secret] not found or has no versions.
+ERROR:root:Failed to retrieve secret 'docintel-database-secret': 404 Secret [projects/108141920718/secrets/docintel-database-secret] not found or has no versions.
+ERROR:root:Failed to retrieve secret 'docintel-database-secret': 404 Secret [projects/108141920718/secrets/docintel-database-secret] not found or has no versions.
+ERROR:root:Failed to retrieve secret 'docintel-database-secret': 404 Secret [projects/108141920718/secrets/docintel-database-secret] not found or has no versions.
+ERROR:root:Failed to retrieve secret 'docintel-database-secret': 404 Secret [projects/108141920718/secrets/docintel-database-secret] not found or has no versions.
+ERROR:root:Failed to retrieve secret 'docintel-database-secret': 404 Secret [projects/108141920718/secrets/docintel-database-secret] not found or has no versions.
+ERROR:root:Failed to retrieve secret 'docintel-database-secret': 404 Secret [projects/108141920718/secrets/docintel-database-secret] not found or has no versions.
+ERROR:root:Failed to retrieve secret 'docintel-database-secret': 404 Secret [projects/108141920718/secrets/docintel-database-secret] not found or has no versions.
+ERROR:root:Failed to retrieve secret 'docintel-database-secret': 404 Secret [projects/108141920718/secrets/docintel-database-secret] not found or has no versions.
+ERROR:root:Failed to retrieve secret 'docintel-database-secret': 404 Secret [projects/108141920718/secrets/docintel-database-secret] not found or has no versions.
+ERROR:root:Failed to retrieve secret 'docintel-database-secret': 404 Secret [projects/108141920718/secrets/docintel-database-secret] not found or has no versions.
+ERROR:root:Failed to retrieve secret 'docintel-database-secret': 404 Secret [projects/108141920718/secrets/docintel-database-secret] not found or has no versions.
+ERROR:root:Failed to retrieve secret 'docintel-database-secret': 404 Secret [projects/108141920718/secrets/docintel-database-secret] not found or has no versions.
+ERROR:root:Failed to retrieve secret 'docintel-database-secret': 404 Secret [projects/108141920718/secrets/docintel-database-secret] not found or has no versions.
+ERROR:root:Failed to retrieve secret 'docintel-database-secret': 404 Secret [projects/108141920718/secrets/docintel-database-secret] not found or has no versions.
+ERROR:root:Failed to retrieve secret 'docintel-database-secret': 404 Secret [projects/108141920718/secrets/docintel-database-secret] not found or has no versions.
+ERROR:root:Failed to retrieve secret 'docintel-database-secret': 404 Secret [projects/108141920718/secrets/docintel-database-secret] not found or has no versions.
+ERROR:root:Failed to retrieve secret 'docintel-database-secret': 404 Secret [projects/108141920718/secrets/docintel-database-secret] not found or has no versions.
+ERROR:root:Failed to retrieve secret 'docintel-database-secret': 404 Secret [projects/108141920718/secrets/docintel-database-secret] not found or has no versions.
+ERROR:root:Failed to retrieve secret 'docintel-database-secret': 404 Secret [projects/108141920718/secrets/docintel-database-secret] not found or has no versions.
+INFO:root:Received Pub/Sub message...
+INFO:root:Processing file: testfile.txt from bucket: mock-bucket
+INFO:root:Received Pub/Sub message...
+INFO:root:Processing file: testfile.txt from bucket: mock-bucket
+INFO:root:Received Pub/Sub message...
+INFO:root:Processing file: testfile.txt from bucket: mock-bucket
+INFO:root:Received Pub/Sub message...
+INFO:root:Processing file: testfile.txt from bucket: mock-bucket
+INFO:root:Received Pub/Sub message...
+INFO:root:Processing file: testfile.txt from bucket: mock-bucket
+INFO:root:Received Pub/Sub message...
+INFO:root:Processing file: testfile.txt from bucket: mock-bucket
+INFO:root:Received Pub/Sub message...
+INFO:root:Processing file: testfile.txt from bucket: mock-bucket
+INFO:root:Received Pub/Sub message...
+INFO:root:Processing file: testfile.txt from bucket: mock-bucket
+INFO:root:Received Pub/Sub message...
+INFO:root:Processing file: testfile.txt from bucket: mock-bucket
+INFO:root:Received Pub/Sub message...
+INFO:root:Processing file: testfile.txt from bucket: mock-bucket
+ERROR:root:Unhandled error processing document: 403 GET https://storage.googleapis.com/download/storage/v1/b/mock-bucket/o/testfile.txt?alt=media: spenderz123@gmail.com does not have storage.objects.get access to the Google Cloud Storage object. Permission &#39;storage.objects.get&#39; denied on resource (or it may not exist).: ('Request failed with status code', 403, 'Expected one of', <HTTPStatus.OK: 200>, <HTTPStatus.PARTIAL_CONTENT: 206>)
+Traceback (most recent call last):
+  File "/home/bleow/.local/lib/python3.14/site-packages/google/cloud/storage/blob.py", line 4659, in _prep_and_do_download
+    self._do_download(
+    ~~~~~~~~~~~~~~~~~^
+        transport,
+        ^^^^^^^^^^
+    ...<9 lines>...
+        single_shot_download=single_shot_download,
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    )
+    ^
+  File "/home/bleow/.local/lib/python3.14/site-packages/google/cloud/storage/blob.py", line 1094, in _do_download
+    response = download.consume(transport, timeout=timeout)
+  File "/home/bleow/.local/lib/python3.14/site-packages/google/cloud/storage/_media/requests/download.py", line 280, in consume
+    return _request_helpers.wait_and_retry(retriable_request, self._retry_strategy)
+           ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/bleow/.local/lib/python3.14/site-packages/google/cloud/storage/_media/requests/_request_helpers.py", line 107, in wait_and_retry
+    return func()
+  File "/home/bleow/.local/lib/python3.14/site-packages/google/api_core/retry/retry_unary.py", line 294, in retry_wrapped_func
+    return retry_target(
+        target,
+    ...<3 lines>...
+        on_error=on_error,
+    )
+  File "/home/bleow/.local/lib/python3.14/site-packages/google/api_core/retry/retry_unary.py", line 156, in retry_target
+    next_sleep = _retry_error_helper(
+        exc,
+    ...<6 lines>...
+        timeout,
+    )
+  File "/home/bleow/.local/lib/python3.14/site-packages/google/api_core/retry/retry_base.py", line 214, in _retry_error_helper
+    raise final_exc from source_exc
+  File "/home/bleow/.local/lib/python3.14/site-packages/google/api_core/retry/retry_unary.py", line 147, in retry_target
+    result = target()
+  File "/home/bleow/.local/lib/python3.14/site-packages/google/cloud/storage/_media/requests/download.py", line 262, in retriable_request
+    self._process_response(result)
+    ~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^
+  File "/home/bleow/.local/lib/python3.14/site-packages/google/cloud/storage/_media/_download.py", line 232, in _process_response
+    _helpers.require_status_code(
+    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~^
+        response, _ACCEPTABLE_STATUS_CODES, self._get_status_code
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    )
+    ^
+  File "/home/bleow/.local/lib/python3.14/site-packages/google/cloud/storage/_media/_helpers.py", line 105, in require_status_code
+    raise InvalidResponse(
+    ...<5 lines>...
+    )
+google.cloud.storage.exceptions.InvalidResponse: ('Request failed with status code', 403, 'Expected one of', <HTTPStatus.OK: 200>, <HTTPStatus.PARTIAL_CONTENT: 206>)
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "/home/bleow/Desktop/AmbankHackathon2026/docintel-data-processor/main.py", line 790, in process_document_from_pubsub
+    document_text = original_blob.download_as_text()
+  File "/home/bleow/.local/lib/python3.14/site-packages/google/cloud/storage/blob.py", line 1765, in download_as_text
+    data = self.download_as_bytes(
+        client=client,
+    ...<11 lines>...
+        single_shot_download=single_shot_download,
+    )
+  File "/home/bleow/.local/lib/python3.14/site-packages/google/cloud/storage/blob.py", line 1530, in download_as_bytes
+    self._prep_and_do_download(
+    ~~~~~~~~~~~~~~~~~~~~~~~~~~^
+        string_buffer,
+        ^^^^^^^^^^^^^^
+    ...<13 lines>...
+        single_shot_download=single_shot_download,
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    )
+    ^
+  File "/home/bleow/.local/lib/python3.14/site-packages/google/cloud/storage/blob.py", line 4673, in _prep_and_do_download
+    _raise_from_invalid_response(exc)
+    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^
+  File "/home/bleow/.local/lib/python3.14/site-packages/google/cloud/storage/blob.py", line 5145, in _raise_from_invalid_response
+    raise exceptions.from_http_status(response.status_code, message, response=response)
+google.api_core.exceptions.Forbidden: 403 GET https://storage.googleapis.com/download/storage/v1/b/mock-bucket/o/testfile.txt?alt=media: spenderz123@gmail.com does not have storage.objects.get access to the Google Cloud Storage object. Permission &#39;storage.objects.get&#39; denied on resource (or it may not exist).: ('Request failed with status code', 403, 'Expected one of', <HTTPStatus.OK: 200>, <HTTPStatus.PARTIAL_CONTENT: 206>)
+ERROR:root:Unhandled error processing document: 403 GET https://storage.googleapis.com/download/storage/v1/b/mock-bucket/o/testfile.txt?alt=media: spenderz123@gmail.com does not have storage.objects.get access to the Google Cloud Storage object. Permission &#39;storage.objects.get&#39; denied on resource (or it may not exist).: ('Request failed with status code', 403, 'Expected one of', <HTTPStatus.OK: 200>, <HTTPStatus.PARTIAL_CONTENT: 206>)
+Traceback (most recent call last):
+  File "/home/bleow/.local/lib/python3.14/site-packages/google/cloud/storage/blob.py", line 4659, in _prep_and_do_download
+    self._do_download(
+    ~~~~~~~~~~~~~~~~~^
+        transport,
+        ^^^^^^^^^^
+    ...<9 lines>...
+        single_shot_download=single_shot_download,
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    )
+    ^
+  File "/home/bleow/.local/lib/python3.14/site-packages/google/cloud/storage/blob.py", line 1094, in _do_download
+    response = download.consume(transport, timeout=timeout)
+  File "/home/bleow/.local/lib/python3.14/site-packages/google/cloud/storage/_media/requests/download.py", line 280, in consume
+    return _request_helpers.wait_and_retry(retriable_request, self._retry_strategy)
+           ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/bleow/.local/lib/python3.14/site-packages/google/cloud/storage/_media/requests/_request_helpers.py", line 107, in wait_and_retry
+    return func()
+  File "/home/bleow/.local/lib/python3.14/site-packages/google/api_core/retry/retry_unary.py", line 294, in retry_wrapped_func
+    return retry_target(
+        target,
+    ...<3 lines>...
+        on_error=on_error,
+    )
+  File "/home/bleow/.local/lib/python3.14/site-packages/google/api_core/retry/retry_unary.py", line 156, in retry_target
+    next_sleep = _retry_error_helper(
+        exc,
+    ...<6 lines>...
+        timeout,
+    )
+  File "/home/bleow/.local/lib/python3.14/site-packages/google/api_core/retry/retry_base.py", line 214, in _retry_error_helper
+    raise final_exc from source_exc
+  File "/home/bleow/.local/lib/python3.14/site-packages/google/api_core/retry/retry_unary.py", line 147, in retry_target
+    result = target()
+  File "/home/bleow/.local/lib/python3.14/site-packages/google/cloud/storage/_media/requests/download.py", line 262, in retriable_request
+    self._process_response(result)
+    ~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^
+  File "/home/bleow/.local/lib/python3.14/site-packages/google/cloud/storage/_media/_download.py", line 232, in _process_response
+    _helpers.require_status_code(
+    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~^
+        response, _ACCEPTABLE_STATUS_CODES, self._get_status_code
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    )
+    ^
+  File "/home/bleow/.local/lib/python3.14/site-packages/google/cloud/storage/_media/_helpers.py", line 105, in require_status_code
+    raise InvalidResponse(
+    ...<5 lines>...
+    )
+google.cloud.storage.exceptions.InvalidResponse: ('Request failed with status code', 403, 'Expected one of', <HTTPStatus.OK: 200>, <HTTPStatus.PARTIAL_CONTENT: 206>)
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "/home/bleow/Desktop/AmbankHackathon2026/docintel-data-processor/main.py", line 790, in process_document_from_pubsub
+    document_text = original_blob.download_as_text()
+  File "/home/bleow/.local/lib/python3.14/site-packages/google/cloud/storage/blob.py", line 1765, in download_as_text
+    data = self.download_as_bytes(
+        client=client,
+    ...<11 lines>...
+        single_shot_download=single_shot_download,
+    )
+  File "/home/bleow/.local/lib/python3.14/site-packages/google/cloud/storage/blob.py", line 1530, in download_as_bytes
+    self._prep_and_do_download(
+    ~~~~~~~~~~~~~~~~~~~~~~~~~~^
+        string_buffer,
+        ^^^^^^^^^^^^^^
+    ...<13 lines>...
+        single_shot_download=single_shot_download,
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    )
+    ^
+  File "/home/bleow/.local/lib/python3.14/site-packages/google/cloud/storage/blob.py", line 4673, in _prep_and_do_download
+    _raise_from_invalid_response(exc)
+    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^
+  File "/home/bleow/.local/lib/python3.14/site-packages/google/cloud/storage/blob.py", line 5145, in _raise_from_invalid_response
+    raise exceptions.from_http_status(response.status_code, message, response=response)
+google.api_core.exceptions.Forbidden: 403 GET https://storage.googleapis.com/download/storage/v1/b/mock-bucket/o/testfile.txt?alt=media: spenderz123@gmail.com does not have storage.objects.get access to the Google Cloud Storage object. Permission &#39;storage.objects.get&#39; denied on resource (or it may not exist).: ('Request failed with status code', 403, 'Expected one of', <HTTPStatus.OK: 200>, <HTTPStatus.PARTIAL_CONTENT: 206>)
+ERROR:root:Unhandled error processing document: 403 GET https://storage.googleapis.com/download/storage/v1/b/mock-bucket/o/testfile.txt?alt=media: spenderz123@gmail.com does not have storage.objects.get access to the Google Cloud Storage object. Permission &#39;storage.objects.get&#39; denied on resource (or it may not exist).: ('Request failed with status code', 403, 'Expected one of', <HTTPStatus.OK: 200>, <HTTPStatus.PARTIAL_CONTENT: 206>)
+Traceback (most recent call last):
+  File "/home/bleow/.local/lib/python3.14/site-packages/google/cloud/storage/blob.py", line 4659, in _prep_and_do_download
+    self._do_download(
+    ~~~~~~~~~~~~~~~~~^
+        transport,
+        ^^^^^^^^^^
+    ...<9 lines>...
+        single_shot_download=single_shot_download,
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    )
+    ^
+  File "/home/bleow/.local/lib/python3.14/site-packages/google/cloud/storage/blob.py", line 1094, in _do_download
+    response = download.consume(transport, timeout=timeout)
+  File "/home/bleow/.local/lib/python3.14/site-packages/google/cloud/storage/_media/requests/download.py", line 280, in consume
+    return _request_helpers.wait_and_retry(retriable_request, self._retry_strategy)
+           ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/bleow/.local/lib/python3.14/site-packages/google/cloud/storage/_media/requests/_request_helpers.py", line 107, in wait_and_retry
+    return func()
+  File "/home/bleow/.local/lib/python3.14/site-packages/google/api_core/retry/retry_unary.py", line 294, in retry_wrapped_func
+    return retry_target(
+        target,
+    ...<3 lines>...
+        on_error=on_error,
+    )
+  File "/home/bleow/.local/lib/python3.14/site-packages/google/api_core/retry/retry_unary.py", line 156, in retry_target
+    next_sleep = _retry_error_helper(
+        exc,
+    ...<6 lines>...
+        timeout,
+    )
+  File "/home/bleow/.local/lib/python3.14/site-packages/google/api_core/retry/retry_base.py", line 214, in _retry_error_helper
+    raise final_exc from source_exc
+  File "/home/bleow/.local/lib/python3.14/site-packages/google/api_core/retry/retry_unary.py", line 147, in retry_target
+    result = target()
+  File "/home/bleow/.local/lib/python3.14/site-packages/google/cloud/storage/_media/requests/download.py", line 262, in retriable_request
+    self._process_response(result)
+    ~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^
+  File "/home/bleow/.local/lib/python3.14/site-packages/google/cloud/storage/_media/_download.py", line 232, in _process_response
+    _helpers.require_status_code(
+    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~^
+        response, _ACCEPTABLE_STATUS_CODES, self._get_status_code
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    )
+    ^
+  File "/home/bleow/.local/lib/python3.14/site-packages/google/cloud/storage/_media/_helpers.py", line 105, in require_status_code
+    raise InvalidResponse(
+    ...<5 lines>...
+    )
+google.cloud.storage.exceptions.InvalidResponse: ('Request failed with status code', 403, 'Expected one of', <HTTPStatus.OK: 200>, <HTTPStatus.PARTIAL_CONTENT: 206>)
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "/home/bleow/Desktop/AmbankHackathon2026/docintel-data-processor/main.py", line 790, in process_document_from_pubsub
+    document_text = original_blob.download_as_text()
+  File "/home/bleow/.local/lib/python3.14/site-packages/google/cloud/storage/blob.py", line 1765, in download_as_text
+    data = self.download_as_bytes(
+        client=client,
+    ...<11 lines>...
+        single_shot_download=single_shot_download,
+    )
+  File "/home/bleow/.local/lib/python3.14/site-packages/google/cloud/storage/blob.py", line 1530, in download_as_bytes
+    self._prep_and_do_download(
+    ~~~~~~~~~~~~~~~~~~~~~~~~~~^
+        string_buffer,
+        ^^^^^^^^^^^^^^
+    ...<13 lines>...
+        single_shot_download=single_shot_download,
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    )
+    ^
+  File "/home/bleow/.local/lib/python3.14/site-packages/google/cloud/storage/blob.py", line 4673, in _prep_and_do_download
+    _raise_from_invalid_response(exc)
+    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^
+  File "/home/bleow/.local/lib/python3.14/site-packages/google/cloud/storage/blob.py", line 5145, in _raise_from_invalid_response
+    raise exceptions.from_http_status(response.status_code, message, response=response)
+google.api_core.exceptions.Forbidden: 403 GET https://storage.googleapis.com/download/storage/v1/b/mock-bucket/o/testfile.txt?alt=media: spenderz123@gmail.com does not have storage.objects.get access to the Google Cloud Storage object. Permission &#39;storage.objects.get&#39; denied on resource (or it may not exist).: ('Request failed with status code', 403, 'Expected one of', <HTTPStatus.OK: 200>, <HTTPStatus.PARTIAL_CONTENT: 206>)
+ERROR:root:Unhandled error processing document: 403 GET https://storage.googleapis.com/download/storage/v1/b/mock-bucket/o/testfile.txt?alt=media: spenderz123@gmail.com does not have storage.objects.get access to the Google Cloud Storage object. Permission &#39;storage.objects.get&#39; denied on resource (or it may not exist).: ('Request failed with status code', 403, 'Expected one of', <HTTPStatus.OK: 200>, <HTTPStatus.PARTIAL_CONTENT: 206>)
+Traceback (most recent call last):
+  File "/home/bleow/.local/lib/python3.14/site-packages/google/cloud/storage/blob.py", line 4659, in _prep_and_do_download
+    self._do_download(
+    ~~~~~~~~~~~~~~~~~^
+        transport,
+        ^^^^^^^^^^
+    ...<9 lines>...
+        single_shot_download=single_shot_download,
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    )
+    ^
+  File "/home/bleow/.local/lib/python3.14/site-packages/google/cloud/storage/blob.py", line 1094, in _do_download
+    response = download.consume(transport, timeout=timeout)
+  File "/home/bleow/.local/lib/python3.14/site-packages/google/cloud/storage/_media/requests/download.py", line 280, in consume
+    return _request_helpers.wait_and_retry(retriable_request, self._retry_strategy)
+           ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/bleow/.local/lib/python3.14/site-packages/google/cloud/storage/_media/requests/_request_helpers.py", line 107, in wait_and_retry
+    return func()
+  File "/home/bleow/.local/lib/python3.14/site-packages/google/api_core/retry/retry_unary.py", line 294, in retry_wrapped_func
+    return retry_target(
+        target,
+    ...<3 lines>...
+        on_error=on_error,
+    )
+  File "/home/bleow/.local/lib/python3.14/site-packages/google/api_core/retry/retry_unary.py", line 156, in retry_target
+    next_sleep = _retry_error_helper(
+        exc,
+    ...<6 lines>...
+        timeout,
+    )
+  File "/home/bleow/.local/lib/python3.14/site-packages/google/api_core/retry/retry_base.py", line 214, in _retry_error_helper
+    raise final_exc from source_exc
+  File "/home/bleow/.local/lib/python3.14/site-packages/google/api_core/retry/retry_unary.py", line 147, in retry_target
+    result = target()
+  File "/home/bleow/.local/lib/python3.14/site-packages/google/cloud/storage/_media/requests/download.py", line 262, in retriable_request
+    self._process_response(result)
+    ~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^
+  File "/home/bleow/.local/lib/python3.14/site-packages/google/cloud/storage/_media/_download.py", line 232, in _process_response
+    _helpers.require_status_code(
+    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~^
+        response, _ACCEPTABLE_STATUS_CODES, self._get_status_code
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    )
+    ^
+  File "/home/bleow/.local/lib/python3.14/site-packages/google/cloud/storage/_media/_helpers.py", line 105, in require_status_code
+    raise InvalidResponse(
+    ...<5 lines>...
+    )
+google.cloud.storage.exceptions.InvalidResponse: ('Request failed with status code', 403, 'Expected one of', <HTTPStatus.OK: 200>, <HTTPStatus.PARTIAL_CONTENT: 206>)
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "/home/bleow/Desktop/AmbankHackathon2026/docintel-data-processor/main.py", line 790, in process_document_from_pubsub
+    document_text = original_blob.download_as_text()
+  File "/home/bleow/.local/lib/python3.14/site-packages/google/cloud/storage/blob.py", line 1765, in download_as_text
+    data = self.download_as_bytes(
+        client=client,
+    ...<11 lines>...
+        single_shot_download=single_shot_download,
+    )
+  File "/home/bleow/.local/lib/python3.14/site-packages/google/cloud/storage/blob.py", line 1530, in download_as_bytes
+    self._prep_and_do_download(
+    ~~~~~~~~~~~~~~~~~~~~~~~~~~^
+        string_buffer,
+        ^^^^^^^^^^^^^^
+    ...<13 lines>...
+        single_shot_download=single_shot_download,
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    )
+    ^
+  File "/home/bleow/.local/lib/python3.14/site-packages/google/cloud/storage/blob.py", line 4673, in _prep_and_do_download
+    _raise_from_invalid_response(exc)
+    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^
+  File "/home/bleow/.local/lib/python3.14/site-packages/google/cloud/storage/blob.py", line 5145, in _raise_from_invalid_response
+    raise exceptions.from_http_status(response.status_code, message, response=response)
+google.api_core.exceptions.Forbidden: 403 GET https://storage.googleapis.com/download/storage/v1/b/mock-bucket/o/testfile.txt?alt=media: spenderz123@gmail.com does not have storage.objects.get access to the Google Cloud Storage object. Permission &#39;storage.objects.get&#39; denied on resource (or it may not exist).: ('Request failed with status code', 403, 'Expected one of', <HTTPStatus.OK: 200>, <HTTPStatus.PARTIAL_CONTENT: 206>)
+ERROR:root:Unhandled error processing document: 403 GET https://storage.googleapis.com/download/storage/v1/b/mock-bucket/o/testfile.txt?alt=media: spenderz123@gmail.com does not have storage.objects.get access to the Google Cloud Storage object. Permission &#39;storage.objects.get&#39; denied on resource (or it may not exist).: ('Request failed with status code', 403, 'Expected one of', <HTTPStatus.OK: 200>, <HTTPStatus.PARTIAL_CONTENT: 206>)
+Traceback (most recent call last):
+  File "/home/bleow/.local/lib/python3.14/site-packages/google/cloud/storage/blob.py", line 4659, in _prep_and_do_download
+    self._do_download(
+    ~~~~~~~~~~~~~~~~~^
+        transport,
+        ^^^^^^^^^^
+    ...<9 lines>...
+        single_shot_download=single_shot_download,
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    )
+    ^
+  File "/home/bleow/.local/lib/python3.14/site-packages/google/cloud/storage/blob.py", line 1094, in _do_download
+    response = download.consume(transport, timeout=timeout)
+  File "/home/bleow/.local/lib/python3.14/site-packages/google/cloud/storage/_media/requests/download.py", line 280, in consume
+    return _request_helpers.wait_and_retry(retriable_request, self._retry_strategy)
+           ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/bleow/.local/lib/python3.14/site-packages/google/cloud/storage/_media/requests/_request_helpers.py", line 107, in wait_and_retry
+    return func()
+  File "/home/bleow/.local/lib/python3.14/site-packages/google/api_core/retry/retry_unary.py", line 294, in retry_wrapped_func
+    return retry_target(
+        target,
+    ...<3 lines>...
+        on_error=on_error,
+    )
+  File "/home/bleow/.local/lib/python3.14/site-packages/google/api_core/retry/retry_unary.py", line 156, in retry_target
+    next_sleep = _retry_error_helper(
+        exc,
+    ...<6 lines>...
+        timeout,
+    )
+  File "/home/bleow/.local/lib/python3.14/site-packages/google/api_core/retry/retry_base.py", line 214, in _retry_error_helper
+    raise final_exc from source_exc
+  File "/home/bleow/.local/lib/python3.14/site-packages/google/api_core/retry/retry_unary.py", line 147, in retry_target
+    result = target()
+  File "/home/bleow/.local/lib/python3.14/site-packages/google/cloud/storage/_media/requests/download.py", line 262, in retriable_request
+    self._process_response(result)
+    ~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^
+  File "/home/bleow/.local/lib/python3.14/site-packages/google/cloud/storage/_media/_download.py", line 232, in _process_response
+    _helpers.require_status_code(
+    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~^
+        response, _ACCEPTABLE_STATUS_CODES, self._get_status_code
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    )
+    ^
+  File "/home/bleow/.local/lib/python3.14/site-packages/google/cloud/storage/_media/_helpers.py", line 105, in require_status_code
+    raise InvalidResponse(
+    ...<5 lines>...
+    )
+google.cloud.storage.exceptions.InvalidResponse: ('Request failed with status code', 403, 'Expected one of', <HTTPStatus.OK: 200>, <HTTPStatus.PARTIAL_CONTENT: 206>)
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "/home/bleow/Desktop/AmbankHackathon2026/docintel-data-processor/main.py", line 790, in process_document_from_pubsub
+    document_text = original_blob.download_as_text()
+  File "/home/bleow/.local/lib/python3.14/site-packages/google/cloud/storage/blob.py", line 1765, in download_as_text
+    data = self.download_as_bytes(
+        client=client,
+    ...<11 lines>...
+        single_shot_download=single_shot_download,
+    )
+  File "/home/bleow/.local/lib/python3.14/site-packages/google/cloud/storage/blob.py", line 1530, in download_as_bytes
+    self._prep_and_do_download(
+    ~~~~~~~~~~~~~~~~~~~~~~~~~~^
+        string_buffer,
+        ^^^^^^^^^^^^^^
+    ...<13 lines>...
+        single_shot_download=single_shot_download,
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    )
+    ^
+  File "/home/bleow/.local/lib/python3.14/site-packages/google/cloud/storage/blob.py", line 4673, in _prep_and_do_download
+    _raise_from_invalid_response(exc)
+    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^
+  File "/home/bleow/.local/lib/python3.14/site-packages/google/cloud/storage/blob.py", line 5145, in _raise_from_invalid_response
+    raise exceptions.from_http_status(response.status_code, message, response=response)
+google.api_core.exceptions.Forbidden: 403 GET https://storage.googleapis.com/download/storage/v1/b/mock-bucket/o/testfile.txt?alt=media: spenderz123@gmail.com does not have storage.objects.get access to the Google Cloud Storage object. Permission &#39;storage.objects.get&#39; denied on resource (or it may not exist).: ('Request failed with status code', 403, 'Expected one of', <HTTPStatus.OK: 200>, <HTTPStatus.PARTIAL_CONTENT: 206>)
+ERROR:root:Unhandled error processing document: 403 GET https://storage.googleapis.com/download/storage/v1/b/mock-bucket/o/testfile.txt?alt=media: spenderz123@gmail.com does not have storage.objects.get access to the Google Cloud Storage object. Permission &#39;storage.objects.get&#39; denied on resource (or it may not exist).: ('Request failed with status code', 403, 'Expected one of', <HTTPStatus.OK: 200>, <HTTPStatus.PARTIAL_CONTENT: 206>)
+Traceback (most recent call last):
+  File "/home/bleow/.local/lib/python3.14/site-packages/google/cloud/storage/blob.py", line 4659, in _prep_and_do_download
+    self._do_download(
+    ~~~~~~~~~~~~~~~~~^
+        transport,
+        ^^^^^^^^^^
+    ...<9 lines>...
+        single_shot_download=single_shot_download,
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    )
+    ^
+  File "/home/bleow/.local/lib/python3.14/site-packages/google/cloud/storage/blob.py", line 1094, in _do_download
+    response = download.consume(transport, timeout=timeout)
+  File "/home/bleow/.local/lib/python3.14/site-packages/google/cloud/storage/_media/requests/download.py", line 280, in consume
+    return _request_helpers.wait_and_retry(retriable_request, self._retry_strategy)
+           ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/bleow/.local/lib/python3.14/site-packages/google/cloud/storage/_media/requests/_request_helpers.py", line 107, in wait_and_retry
+    return func()
+  File "/home/bleow/.local/lib/python3.14/site-packages/google/api_core/retry/retry_unary.py", line 294, in retry_wrapped_func
+    return retry_target(
+        target,
+    ...<3 lines>...
+        on_error=on_error,
+    )
+  File "/home/bleow/.local/lib/python3.14/site-packages/google/api_core/retry/retry_unary.py", line 156, in retry_target
+    next_sleep = _retry_error_helper(
+        exc,
+    ...<6 lines>...
+        timeout,
+    )
+  File "/home/bleow/.local/lib/python3.14/site-packages/google/api_core/retry/retry_base.py", line 214, in _retry_error_helper
+    raise final_exc from source_exc
+  File "/home/bleow/.local/lib/python3.14/site-packages/google/api_core/retry/retry_unary.py", line 147, in retry_target
+    result = target()
+  File "/home/bleow/.local/lib/python3.14/site-packages/google/cloud/storage/_media/requests/download.py", line 262, in retriable_request
+    self._process_response(result)
+    ~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^
+  File "/home/bleow/.local/lib/python3.14/site-packages/google/cloud/storage/_media/_download.py", line 232, in _process_response
+    _helpers.require_status_code(
+    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~^
+        response, _ACCEPTABLE_STATUS_CODES, self._get_status_code
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    )
+    ^
+  File "/home/bleow/.local/lib/python3.14/site-packages/google/cloud/storage/_media/_helpers.py", line 105, in require_status_code
+    raise InvalidResponse(
+    ...<5 lines>...
+    )
+google.cloud.storage.exceptions.InvalidResponse: ('Request failed with status code', 403, 'Expected one of', <HTTPStatus.OK: 200>, <HTTPStatus.PARTIAL_CONTENT: 206>)
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "/home/bleow/Desktop/AmbankHackathon2026/docintel-data-processor/main.py", line 790, in process_document_from_pubsub
+    document_text = original_blob.download_as_text()
+  File "/home/bleow/.local/lib/python3.14/site-packages/google/cloud/storage/blob.py", line 1765, in download_as_text
+    data = self.download_as_bytes(
+        client=client,
+    ...<11 lines>...
+        single_shot_download=single_shot_download,
+    )
+  File "/home/bleow/.local/lib/python3.14/site-packages/google/cloud/storage/blob.py", line 1530, in download_as_bytes
+    self._prep_and_do_download(
+    ~~~~~~~~~~~~~~~~~~~~~~~~~~^
+        string_buffer,
+        ^^^^^^^^^^^^^^
+    ...<13 lines>...
+        single_shot_download=single_shot_download,
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    )
+    ^
+  File "/home/bleow/.local/lib/python3.14/site-packages/google/cloud/storage/blob.py", line 4673, in _prep_and_do_download
+    _raise_from_invalid_response(exc)
+    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^
+  File "/home/bleow/.local/lib/python3.14/site-packages/google/cloud/storage/blob.py", line 5145, in _raise_from_invalid_response
+    raise exceptions.from_http_status(response.status_code, message, response=response)
+google.api_core.exceptions.Forbidden: 403 GET https://storage.googleapis.com/download/storage/v1/b/mock-bucket/o/testfile.txt?alt=media: spenderz123@gmail.com does not have storage.objects.get access to the Google Cloud Storage object. Permission &#39;storage.objects.get&#39; denied on resource (or it may not exist).: ('Request failed with status code', 403, 'Expected one of', <HTTPStatus.OK: 200>, <HTTPStatus.PARTIAL_CONTENT: 206>)
+ERROR:root:Unhandled error processing document: 403 GET https://storage.googleapis.com/download/storage/v1/b/mock-bucket/o/testfile.txt?alt=media: spenderz123@gmail.com does not have storage.objects.get access to the Google Cloud Storage object. Permission &#39;storage.objects.get&#39; denied on resource (or it may not exist).: ('Request failed with status code', 403, 'Expected one of', <HTTPStatus.OK: 200>, <HTTPStatus.PARTIAL_CONTENT: 206>)
+Traceback (most recent call last):
+  File "/home/bleow/.local/lib/python3.14/site-packages/google/cloud/storage/blob.py", line 4659, in _prep_and_do_download
+    self._do_download(
+    ~~~~~~~~~~~~~~~~~^
+        transport,
+        ^^^^^^^^^^
+    ...<9 lines>...
+        single_shot_download=single_shot_download,
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    )
+    ^
+  File "/home/bleow/.local/lib/python3.14/site-packages/google/cloud/storage/blob.py", line 1094, in _do_download
+    response = download.consume(transport, timeout=timeout)
+  File "/home/bleow/.local/lib/python3.14/site-packages/google/cloud/storage/_media/requests/download.py", line 280, in consume
+    return _request_helpers.wait_and_retry(retriable_request, self._retry_strategy)
+           ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/bleow/.local/lib/python3.14/site-packages/google/cloud/storage/_media/requests/_request_helpers.py", line 107, in wait_and_retry
+    return func()
+  File "/home/bleow/.local/lib/python3.14/site-packages/google/api_core/retry/retry_unary.py", line 294, in retry_wrapped_func
+    return retry_target(
+        target,
+    ...<3 lines>...
+        on_error=on_error,
+    )
+  File "/home/bleow/.local/lib/python3.14/site-packages/google/api_core/retry/retry_unary.py", line 156, in retry_target
+    next_sleep = _retry_error_helper(
+        exc,
+    ...<6 lines>...
+        timeout,
+    )
+  File "/home/bleow/.local/lib/python3.14/site-packages/google/api_core/retry/retry_base.py", line 214, in _retry_error_helper
+    raise final_exc from source_exc
+  File "/home/bleow/.local/lib/python3.14/site-packages/google/api_core/retry/retry_unary.py", line 147, in retry_target
+    result = target()
+  File "/home/bleow/.local/lib/python3.14/site-packages/google/cloud/storage/_media/requests/download.py", line 262, in retriable_request
+    self._process_response(result)
+    ~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^
+  File "/home/bleow/.local/lib/python3.14/site-packages/google/cloud/storage/_media/_download.py", line 232, in _process_response
+    _helpers.require_status_code(
+    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~^
+        response, _ACCEPTABLE_STATUS_CODES, self._get_status_code
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    )
+    ^
+  File "/home/bleow/.local/lib/python3.14/site-packages/google/cloud/storage/_media/_helpers.py", line 105, in require_status_code
+    raise InvalidResponse(
+    ...<5 lines>...
+    )
+google.cloud.storage.exceptions.InvalidResponse: ('Request failed with status code', 403, 'Expected one of', <HTTPStatus.OK: 200>, <HTTPStatus.PARTIAL_CONTENT: 206>)
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "/home/bleow/Desktop/AmbankHackathon2026/docintel-data-processor/main.py", line 790, in process_document_from_pubsub
+    document_text = original_blob.download_as_text()
+  File "/home/bleow/.local/lib/python3.14/site-packages/google/cloud/storage/blob.py", line 1765, in download_as_text
+    data = self.download_as_bytes(
+        client=client,
+    ...<11 lines>...
+        single_shot_download=single_shot_download,
+    )
+  File "/home/bleow/.local/lib/python3.14/site-packages/google/cloud/storage/blob.py", line 1530, in download_as_bytes
+    self._prep_and_do_download(
+    ~~~~~~~~~~~~~~~~~~~~~~~~~~^
+        string_buffer,
+        ^^^^^^^^^^^^^^
+    ...<13 lines>...
+        single_shot_download=single_shot_download,
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    )
+    ^
+  File "/home/bleow/.local/lib/python3.14/site-packages/google/cloud/storage/blob.py", line 4673, in _prep_and_do_download
+    _raise_from_invalid_response(exc)
+    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^
+  File "/home/bleow/.local/lib/python3.14/site-packages/google/cloud/storage/blob.py", line 5145, in _raise_from_invalid_response
+    raise exceptions.from_http_status(response.status_code, message, response=response)
+google.api_core.exceptions.Forbidden: 403 GET https://storage.googleapis.com/download/storage/v1/b/mock-bucket/o/testfile.txt?alt=media: spenderz123@gmail.com does not have storage.objects.get access to the Google Cloud Storage object. Permission &#39;storage.objects.get&#39; denied on resource (or it may not exist).: ('Request failed with status code', 403, 'Expected one of', <HTTPStatus.OK: 200>, <HTTPStatus.PARTIAL_CONTENT: 206>)
+ERROR:root:Unhandled error processing document: 403 GET https://storage.googleapis.com/download/storage/v1/b/mock-bucket/o/testfile.txt?alt=media: spenderz123@gmail.com does not have storage.objects.get access to the Google Cloud Storage object. Permission &#39;storage.objects.get&#39; denied on resource (or it may not exist).: ('Request failed with status code', 403, 'Expected one of', <HTTPStatus.OK: 200>, <HTTPStatus.PARTIAL_CONTENT: 206>)
+Traceback (most recent call last):
+  File "/home/bleow/.local/lib/python3.14/site-packages/google/cloud/storage/blob.py", line 4659, in _prep_and_do_download
+    self._do_download(
+    ~~~~~~~~~~~~~~~~~^
+        transport,
+        ^^^^^^^^^^
+    ...<9 lines>...
+        single_shot_download=single_shot_download,
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    )
+    ^
+  File "/home/bleow/.local/lib/python3.14/site-packages/google/cloud/storage/blob.py", line 1094, in _do_download
+    response = download.consume(transport, timeout=timeout)
+  File "/home/bleow/.local/lib/python3.14/site-packages/google/cloud/storage/_media/requests/download.py", line 280, in consume
+    return _request_helpers.wait_and_retry(retriable_request, self._retry_strategy)
+           ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/bleow/.local/lib/python3.14/site-packages/google/cloud/storage/_media/requests/_request_helpers.py", line 107, in wait_and_retry
+    return func()
+  File "/home/bleow/.local/lib/python3.14/site-packages/google/api_core/retry/retry_unary.py", line 294, in retry_wrapped_func
+    return retry_target(
+        target,
+    ...<3 lines>...
+        on_error=on_error,
+    )
+  File "/home/bleow/.local/lib/python3.14/site-packages/google/api_core/retry/retry_unary.py", line 156, in retry_target
+    next_sleep = _retry_error_helper(
+        exc,
+    ...<6 lines>...
+        timeout,
+    )
+  File "/home/bleow/.local/lib/python3.14/site-packages/google/api_core/retry/retry_base.py", line 214, in _retry_error_helper
+    raise final_exc from source_exc
+  File "/home/bleow/.local/lib/python3.14/site-packages/google/api_core/retry/retry_unary.py", line 147, in retry_target
+    result = target()
+  File "/home/bleow/.local/lib/python3.14/site-packages/google/cloud/storage/_media/requests/download.py", line 262, in retriable_request
+    self._process_response(result)
+    ~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^
+  File "/home/bleow/.local/lib/python3.14/site-packages/google/cloud/storage/_media/_download.py", line 232, in _process_response
+    _helpers.require_status_code(
+    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~^
+        response, _ACCEPTABLE_STATUS_CODES, self._get_status_code
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    )
+    ^
+  File "/home/bleow/.local/lib/python3.14/site-packages/google/cloud/storage/_media/_helpers.py", line 105, in require_status_code
+    raise InvalidResponse(
+    ...<5 lines>...
+    )
+google.cloud.storage.exceptions.InvalidResponse: ('Request failed with status code', 403, 'Expected one of', <HTTPStatus.OK: 200>, <HTTPStatus.PARTIAL_CONTENT: 206>)
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "/home/bleow/Desktop/AmbankHackathon2026/docintel-data-processor/main.py", line 790, in process_document_from_pubsub
+    document_text = original_blob.download_as_text()
+  File "/home/bleow/.local/lib/python3.14/site-packages/google/cloud/storage/blob.py", line 1765, in download_as_text
+    data = self.download_as_bytes(
+        client=client,
+    ...<11 lines>...
+        single_shot_download=single_shot_download,
+    )
+  File "/home/bleow/.local/lib/python3.14/site-packages/google/cloud/storage/blob.py", line 1530, in download_as_bytes
+    self._prep_and_do_download(
+    ~~~~~~~~~~~~~~~~~~~~~~~~~~^
+        string_buffer,
+        ^^^^^^^^^^^^^^
+    ...<13 lines>...
+        single_shot_download=single_shot_download,
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    )
+    ^
+  File "/home/bleow/.local/lib/python3.14/site-packages/google/cloud/storage/blob.py", line 4673, in _prep_and_do_download
+    _raise_from_invalid_response(exc)
+    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^
+  File "/home/bleow/.local/lib/python3.14/site-packages/google/cloud/storage/blob.py", line 5145, in _raise_from_invalid_response
+    raise exceptions.from_http_status(response.status_code, message, response=response)
+google.api_core.exceptions.Forbidden: 403 GET https://storage.googleapis.com/download/storage/v1/b/mock-bucket/o/testfile.txt?alt=media: spenderz123@gmail.com does not have storage.objects.get access to the Google Cloud Storage object. Permission &#39;storage.objects.get&#39; denied on resource (or it may not exist).: ('Request failed with status code', 403, 'Expected one of', <HTTPStatus.OK: 200>, <HTTPStatus.PARTIAL_CONTENT: 206>)
+ERROR:root:Unhandled error processing document: 403 GET https://storage.googleapis.com/download/storage/v1/b/mock-bucket/o/testfile.txt?alt=media: spenderz123@gmail.com does not have storage.objects.get access to the Google Cloud Storage object. Permission &#39;storage.objects.get&#39; denied on resource (or it may not exist).: ('Request failed with status code', 403, 'Expected one of', <HTTPStatus.OK: 200>, <HTTPStatus.PARTIAL_CONTENT: 206>)
+Traceback (most recent call last):
+  File "/home/bleow/.local/lib/python3.14/site-packages/google/cloud/storage/blob.py", line 4659, in _prep_and_do_download
+    self._do_download(
+    ~~~~~~~~~~~~~~~~~^
+        transport,
+        ^^^^^^^^^^
+    ...<9 lines>...
+        single_shot_download=single_shot_download,
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    )
+    ^
+  File "/home/bleow/.local/lib/python3.14/site-packages/google/cloud/storage/blob.py", line 1094, in _do_download
+    response = download.consume(transport, timeout=timeout)
+  File "/home/bleow/.local/lib/python3.14/site-packages/google/cloud/storage/_media/requests/download.py", line 280, in consume
+    return _request_helpers.wait_and_retry(retriable_request, self._retry_strategy)
+           ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/bleow/.local/lib/python3.14/site-packages/google/cloud/storage/_media/requests/_request_helpers.py", line 107, in wait_and_retry
+    return func()
+  File "/home/bleow/.local/lib/python3.14/site-packages/google/api_core/retry/retry_unary.py", line 294, in retry_wrapped_func
+    return retry_target(
+        target,
+    ...<3 lines>...
+        on_error=on_error,
+    )
+  File "/home/bleow/.local/lib/python3.14/site-packages/google/api_core/retry/retry_unary.py", line 156, in retry_target
+    next_sleep = _retry_error_helper(
+        exc,
+    ...<6 lines>...
+        timeout,
+    )
+  File "/home/bleow/.local/lib/python3.14/site-packages/google/api_core/retry/retry_base.py", line 214, in _retry_error_helper
+    raise final_exc from source_exc
+  File "/home/bleow/.local/lib/python3.14/site-packages/google/api_core/retry/retry_unary.py", line 147, in retry_target
+    result = target()
+  File "/home/bleow/.local/lib/python3.14/site-packages/google/cloud/storage/_media/requests/download.py", line 262, in retriable_request
+    self._process_response(result)
+    ~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^
+  File "/home/bleow/.local/lib/python3.14/site-packages/google/cloud/storage/_media/_download.py", line 232, in _process_response
+    _helpers.require_status_code(
+    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~^
+        response, _ACCEPTABLE_STATUS_CODES, self._get_status_code
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    )
+    ^
+  File "/home/bleow/.local/lib/python3.14/site-packages/google/cloud/storage/_media/_helpers.py", line 105, in require_status_code
+    raise InvalidResponse(
+    ...<5 lines>...
+    )
+google.cloud.storage.exceptions.InvalidResponse: ('Request failed with status code', 403, 'Expected one of', <HTTPStatus.OK: 200>, <HTTPStatus.PARTIAL_CONTENT: 206>)
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "/home/bleow/Desktop/AmbankHackathon2026/docintel-data-processor/main.py", line 790, in process_document_from_pubsub
+    document_text = original_blob.download_as_text()
+  File "/home/bleow/.local/lib/python3.14/site-packages/google/cloud/storage/blob.py", line 1765, in download_as_text
+    data = self.download_as_bytes(
+        client=client,
+    ...<11 lines>...
+        single_shot_download=single_shot_download,
+    )
+  File "/home/bleow/.local/lib/python3.14/site-packages/google/cloud/storage/blob.py", line 1530, in download_as_bytes
+    self._prep_and_do_download(
+    ~~~~~~~~~~~~~~~~~~~~~~~~~~^
+        string_buffer,
+        ^^^^^^^^^^^^^^
+    ...<13 lines>...
+        single_shot_download=single_shot_download,
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    )
+    ^
+  File "/home/bleow/.local/lib/python3.14/site-packages/google/cloud/storage/blob.py", line 4673, in _prep_and_do_download
+    _raise_from_invalid_response(exc)
+    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^
+  File "/home/bleow/.local/lib/python3.14/site-packages/google/cloud/storage/blob.py", line 5145, in _raise_from_invalid_response
+    raise exceptions.from_http_status(response.status_code, message, response=response)
+google.api_core.exceptions.Forbidden: 403 GET https://storage.googleapis.com/download/storage/v1/b/mock-bucket/o/testfile.txt?alt=media: spenderz123@gmail.com does not have storage.objects.get access to the Google Cloud Storage object. Permission &#39;storage.objects.get&#39; denied on resource (or it may not exist).: ('Request failed with status code', 403, 'Expected one of', <HTTPStatus.OK: 200>, <HTTPStatus.PARTIAL_CONTENT: 206>)
+INFO:httpx:HTTP Request: POST http://testserver/process-document "HTTP/1.1 500 Internal Server Error"
+INFO:httpx:HTTP Request: POST http://testserver/process-document "HTTP/1.1 500 Internal Server Error"
+INFO:httpx:HTTP Request: POST http://testserver/process-document "HTTP/1.1 500 Internal Server Error"
+INFO:httpx:HTTP Request: POST http://testserver/process-document "HTTP/1.1 500 Internal Server Error"
+INFO:httpx:HTTP Request: POST http://testserver/process-document "HTTP/1.1 500 Internal Server Error"
+INFO:httpx:HTTP Request: POST http://testserver/process-document "HTTP/1.1 500 Internal Server Error"
+INFO:httpx:HTTP Request: POST http://testserver/process-document "HTTP/1.1 500 Internal Server Error"
+INFO:httpx:HTTP Request: POST http://testserver/process-document "HTTP/1.1 500 Internal Server Error"
+INFO:httpx:HTTP Request: POST http://testserver/process-document "HTTP/1.1 500 Internal Server Error"
+ERROR:root:Unhandled error processing document: 403 GET https://storage.googleapis.com/download/storage/v1/b/mock-bucket/o/testfile.txt?alt=media: spenderz123@gmail.com does not have storage.objects.get access to the Google Cloud Storage object. Permission &#39;storage.objects.get&#39; denied on resource (or it may not exist).: ('Request failed with status code', 403, 'Expected one of', <HTTPStatus.OK: 200>, <HTTPStatus.PARTIAL_CONTENT: 206>)
+Traceback (most recent call last):
+  File "/home/bleow/.local/lib/python3.14/site-packages/google/cloud/storage/blob.py", line 4659, in _prep_and_do_download
+    self._do_download(
+    ~~~~~~~~~~~~~~~~~^
+        transport,
+        ^^^^^^^^^^
+    ...<9 lines>...
+        single_shot_download=single_shot_download,
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    )
+    ^
+  File "/home/bleow/.local/lib/python3.14/site-packages/google/cloud/storage/blob.py", line 1094, in _do_download
+    response = download.consume(transport, timeout=timeout)
+  File "/home/bleow/.local/lib/python3.14/site-packages/google/cloud/storage/_media/requests/download.py", line 280, in consume
+    return _request_helpers.wait_and_retry(retriable_request, self._retry_strategy)
+           ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/bleow/.local/lib/python3.14/site-packages/google/cloud/storage/_media/requests/_request_helpers.py", line 107, in wait_and_retry
+    return func()
+  File "/home/bleow/.local/lib/python3.14/site-packages/google/api_core/retry/retry_unary.py", line 294, in retry_wrapped_func
+    return retry_target(
+        target,
+    ...<3 lines>...
+        on_error=on_error,
+    )
+  File "/home/bleow/.local/lib/python3.14/site-packages/google/api_core/retry/retry_unary.py", line 156, in retry_target
+    next_sleep = _retry_error_helper(
+        exc,
+    ...<6 lines>...
+        timeout,
+    )
+  File "/home/bleow/.local/lib/python3.14/site-packages/google/api_core/retry/retry_base.py", line 214, in _retry_error_helper
+    raise final_exc from source_exc
+  File "/home/bleow/.local/lib/python3.14/site-packages/google/api_core/retry/retry_unary.py", line 147, in retry_target
+    result = target()
+  File "/home/bleow/.local/lib/python3.14/site-packages/google/cloud/storage/_media/requests/download.py", line 262, in retriable_request
+    self._process_response(result)
+    ~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^
+  File "/home/bleow/.local/lib/python3.14/site-packages/google/cloud/storage/_media/_download.py", line 232, in _process_response
+    _helpers.require_status_code(
+    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~^
+        response, _ACCEPTABLE_STATUS_CODES, self._get_status_code
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    )
+    ^
+  File "/home/bleow/.local/lib/python3.14/site-packages/google/cloud/storage/_media/_helpers.py", line 105, in require_status_code
+    raise InvalidResponse(
+    ...<5 lines>...
+    )
+google.cloud.storage.exceptions.InvalidResponse: ('Request failed with status code', 403, 'Expected one of', <HTTPStatus.OK: 200>, <HTTPStatus.PARTIAL_CONTENT: 206>)
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "/home/bleow/Desktop/AmbankHackathon2026/docintel-data-processor/main.py", line 790, in process_document_from_pubsub
+    document_text = original_blob.download_as_text()
+  File "/home/bleow/.local/lib/python3.14/site-packages/google/cloud/storage/blob.py", line 1765, in download_as_text
+    data = self.download_as_bytes(
+        client=client,
+    ...<11 lines>...
+        single_shot_download=single_shot_download,
+    )
+  File "/home/bleow/.local/lib/python3.14/site-packages/google/cloud/storage/blob.py", line 1530, in download_as_bytes
+    self._prep_and_do_download(
+    ~~~~~~~~~~~~~~~~~~~~~~~~~~^
+        string_buffer,
+        ^^^^^^^^^^^^^^
+    ...<13 lines>...
+        single_shot_download=single_shot_download,
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    )
+    ^
+  File "/home/bleow/.local/lib/python3.14/site-packages/google/cloud/storage/blob.py", line 4673, in _prep_and_do_download
+    _raise_from_invalid_response(exc)
+    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^
+  File "/home/bleow/.local/lib/python3.14/site-packages/google/cloud/storage/blob.py", line 5145, in _raise_from_invalid_response
+    raise exceptions.from_http_status(response.status_code, message, response=response)
+google.api_core.exceptions.Forbidden: 403 GET https://storage.googleapis.com/download/storage/v1/b/mock-bucket/o/testfile.txt?alt=media: spenderz123@gmail.com does not have storage.objects.get access to the Google Cloud Storage object. Permission &#39;storage.objects.get&#39; denied on resource (or it may not exist).: ('Request failed with status code', 403, 'Expected one of', <HTTPStatus.OK: 200>, <HTTPStatus.PARTIAL_CONTENT: 206>)
+INFO:httpx:HTTP Request: POST http://testserver/process-document "HTTP/1.1 500 Internal Server Error"
+UNMOCK=1 set — running stress_endpoints without mocks (real GCS/DB/Vertex will be used)
+Starting stress test: rag-query 40 concurrent requests
+Starting process-document stress test 10 concurrent requests
+RAG results sample (first 10):
+(3, 'exception', '404 Secret [projects/108141920718/secrets/docintel-database-secret] not found or has no versions.')
+(13, 'exception', '404 Secret [projects/108141920718/secrets/docintel-database-secret] not found or has no versions.')
+(15, 'exception', '404 Secret [projects/108141920718/secrets/docintel-database-secret] not found or has no versions.')
+(12, 'exception', '404 Secret [projects/108141920718/secrets/docintel-database-secret] not found or has no versions.')
+(5, 'exception', '404 Secret [projects/108141920718/secrets/docintel-database-secret] not found or has no versions.')
+(1, 'exception', '404 Secret [projects/108141920718/secrets/docintel-database-secret] not found or has no versions.')
+(0, 'exception', '404 Secret [projects/108141920718/secrets/docintel-database-secret] not found or has no versions.')
+(10, 'exception', '404 Secret [projects/108141920718/secrets/docintel-database-secret] not found or has no versions.')
+(4, 'exception', '404 Secret [projects/108141920718/secrets/docintel-database-secret] not found or has no versions.')
+(9, 'exception', '404 Secret [projects/108141920718/secrets/docintel-database-secret] not found or has no versions.')
+RAG total 40 elapsed 2.103973865509033
+PROCESS results:
+(2, 500, {'detail': "An unexpected error occurred: 403 GET https://storage.googleapis.com/download/storage/v1/b/mock-bucket/o/testfile.txt?alt=media: spenderz123@gmail.com does not have storage.objects.get access to the Google Cloud Storage object. Permission &#39;storage.objects.get&#39; denied on resource (or it may not exist).: ('Request failed with status code', 403, 'Expected one of', <HTTPStatus.OK: 200>, <HTTPStatus.PARTIAL_CONTENT: 206>)"})
+(0, 500, {'detail': "An unexpected error occurred: 403 GET https://storage.googleapis.com/download/storage/v1/b/mock-bucket/o/testfile.txt?alt=media: spenderz123@gmail.com does not have storage.objects.get access to the Google Cloud Storage object. Permission &#39;storage.objects.get&#39; denied on resource (or it may not exist).: ('Request failed with status code', 403, 'Expected one of', <HTTPStatus.OK: 200>, <HTTPStatus.PARTIAL_CONTENT: 206>)"})
+(6, 500, {'detail': "An unexpected error occurred: 403 GET https://storage.googleapis.com/download/storage/v1/b/mock-bucket/o/testfile.txt?alt=media: spenderz123@gmail.com does not have storage.objects.get access to the Google Cloud Storage object. Permission &#39;storage.objects.get&#39; denied on resource (or it may not exist).: ('Request failed with status code', 403, 'Expected one of', <HTTPStatus.OK: 200>, <HTTPStatus.PARTIAL_CONTENT: 206>)"})
+(5, 500, {'detail': "An unexpected error occurred: 403 GET https://storage.googleapis.com/download/storage/v1/b/mock-bucket/o/testfile.txt?alt=media: spenderz123@gmail.com does not have storage.objects.get access to the Google Cloud Storage object. Permission &#39;storage.objects.get&#39; denied on resource (or it may not exist).: ('Request failed with status code', 403, 'Expected one of', <HTTPStatus.OK: 200>, <HTTPStatus.PARTIAL_CONTENT: 206>)"})
+(3, 500, {'detail': "An unexpected error occurred: 403 GET https://storage.googleapis.com/download/storage/v1/b/mock-bucket/o/testfile.txt?alt=media: spenderz123@gmail.com does not have storage.objects.get access to the Google Cloud Storage object. Permission &#39;storage.objects.get&#39; denied on resource (or it may not exist).: ('Request failed with status code', 403, 'Expected one of', <HTTPStatus.OK: 200>, <HTTPStatus.PARTIAL_CONTENT: 206>)"})
+(7, 500, {'detail': "An unexpected error occurred: 403 GET https://storage.googleapis.com/download/storage/v1/b/mock-bucket/o/testfile.txt?alt=media: spenderz123@gmail.com does not have storage.objects.get access to the Google Cloud Storage object. Permission &#39;storage.objects.get&#39; denied on resource (or it may not exist).: ('Request failed with status code', 403, 'Expected one of', <HTTPStatus.OK: 200>, <HTTPStatus.PARTIAL_CONTENT: 206>)"})
+(8, 500, {'detail': "An unexpected error occurred: 403 GET https://storage.googleapis.com/download/storage/v1/b/mock-bucket/o/testfile.txt?alt=media: spenderz123@gmail.com does not have storage.objects.get access to the Google Cloud Storage object. Permission &#39;storage.objects.get&#39; denied on resource (or it may not exist).: ('Request failed with status code', 403, 'Expected one of', <HTTPStatus.OK: 200>, <HTTPStatus.PARTIAL_CONTENT: 206>)"})
+(9, 500, {'detail': "An unexpected error occurred: 403 GET https://storage.googleapis.com/download/storage/v1/b/mock-bucket/o/testfile.txt?alt=media: spenderz123@gmail.com does not have storage.objects.get access to the Google Cloud Storage object. Permission &#39;storage.objects.get&#39; denied on resource (or it may not exist).: ('Request failed with status code', 403, 'Expected one of', <HTTPStatus.OK: 200>, <HTTPStatus.PARTIAL_CONTENT: 206>)"})
+(4, 500, {'detail': "An unexpected error occurred: 403 GET https://storage.googleapis.com/download/storage/v1/b/mock-bucket/o/testfile.txt?alt=media: spenderz123@gmail.com does not have storage.objects.get access to the Google Cloud Storage object. Permission &#39;storage.objects.get&#39; denied on resource (or it may not exist).: ('Request failed with status code', 403, 'Expected one of', <HTTPStatus.OK: 200>, <HTTPStatus.PARTIAL_CONTENT: 206>)"})
+(1, 500, {'detail': "An unexpected error occurred: 403 GET https://storage.googleapis.com/download/storage/v1/b/mock-bucket/o/testfile.txt?alt=media: spenderz123@gmail.com does not have storage.objects.get access to the Google Cloud Storage object. Permission &#39;storage.objects.get&#39; denied on resource (or it may not exist).: ('Request failed with status code', 403, 'Expected one of', <HTTPStatus.OK: 200>, <HTTPStatus.PARTIAL_CONTENT: 206>)"})
+PROCESS total 10 elapsed 0.5486981868743896
+Stress test complete
