@@ -1,0 +1,9 @@
+fastapi
+uvicorn[standard]
+google-cloud-storage
+google-cloud-pubsub
+google-cloud-aiplatform
+google-cloud-secret-manager
+psycopg2-binary # For PostgreSQL client
+pypdf # Or another PDF parsing library like pdfminer.six
+python-dotenv # For local development

@@ -1,0 +1,9 @@
+functions-framework
+google-cloud-storage
+google-cloud-secret-manager
+cloud-sql-python-connector
+pg8000
+google-cloud-aiplatform>=2.16.0
+
+
+
