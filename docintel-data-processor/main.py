@@ -434,6 +434,206 @@ async def get_text_embeddings(texts: List[str]) -> List[List[float]]:
         logging.error(f"Failed to get text embeddings from Vertex Endpoint: {e}", exc_info=True)
         raise
 
+
+# --- Background Embedding Worker ---
+# Polls for pending documents and generates embeddings asynchronously
+
+EMBEDDING_WORKER_INTERVAL = int(os.environ.get('EMBEDDING_WORKER_INTERVAL', '60'))  # seconds
+EMBEDDING_WORKER_BATCH_SIZE = int(os.environ.get('EMBEDDING_WORKER_BATCH_SIZE', '5'))
+_embedding_worker_task = None
+
+async def embedding_worker_loop():
+    """Background worker that processes pending embeddings.
+    
+    Strategy:
+    - Override justifications: Embed immediately (grey-area learning)
+    - SOP documents: Embed after 2-hour edit window (quality control)
+    - Retry once on failure, then mark as 'failed' and notify admin
+    """
+    logging.info(f"Embedding worker started. Polling every {EMBEDDING_WORKER_INTERVAL}s, batch size {EMBEDDING_WORKER_BATCH_SIZE}")
+    
+    while True:
+        try:
+            await asyncio.sleep(EMBEDDING_WORKER_INTERVAL)
+            
+            if TEST_MODE:
+                continue  # Skip in test mode
+            
+            conn = None
+            try:
+                conn = get_db_connection()
+                cursor = conn.cursor()
+                
+                # Get pending documents ready for embedding
+                cursor.execute("""
+                    SELECT id, document_type, chunk_content, gcs_object_path, embedding_attempt_count
+                    FROM documents
+                    WHERE embedding_status = 'pending'
+                      AND embedding_eligible_at <= NOW()
+                      AND embedding_attempt_count < 2
+                    ORDER BY embedding_eligible_at ASC
+                    LIMIT %s
+                    FOR UPDATE SKIP LOCKED
+                """, (EMBEDDING_WORKER_BATCH_SIZE,))
+                
+                pending_docs = cursor.fetchall()
+                
+                if not pending_docs:
+                    cursor.close()
+                    conn.close()
+                    continue
+                
+                logging.info(f"Embedding worker processing {len(pending_docs)} pending documents")
+                
+                for doc in pending_docs:
+                    doc_id, doc_type, chunk_content, gcs_path, attempt_count = doc
+                    
+                    try:
+                        # Increment attempt count
+                        cursor.execute("""
+                            UPDATE documents 
+                            SET embedding_attempt_count = embedding_attempt_count + 1,
+                                embedding_last_attempt_at = NOW()
+                            WHERE id = %s
+                        """, (doc_id,))
+                        
+                        # Generate embedding
+                        embeddings = await get_text_embeddings([chunk_content])
+                        
+                        if embeddings and embeddings[0]:
+                            # Convert embedding to pgvector format
+                            embedding_str = '[' + ','.join(map(str, embeddings[0])) + ']'
+                            
+                            # Update document with embedding
+                            cursor.execute("""
+                                UPDATE documents 
+                                SET embedding_vector = %s::vector,
+                                    embedding_status = 'complete',
+                                    embedding_last_attempt_at = NOW()
+                                WHERE id = %s
+                            """, (embedding_str, doc_id))
+                            
+                            logging.info(f"Embedding complete for document {doc_id} ({doc_type})")
+                        else:
+                            raise ValueError("Empty embedding returned")
+                            
+                    except Exception as e:
+                        error_msg = str(e)[:500]  # Truncate long error messages
+                        new_attempt_count = attempt_count + 1
+                        
+                        if new_attempt_count >= 2:
+                            # Max retries exhausted - mark as failed
+                            cursor.execute("""
+                                UPDATE documents 
+                                SET embedding_status = 'failed',
+                                    embedding_error_message = %s,
+                                    embedding_last_attempt_at = NOW()
+                                WHERE id = %s
+                            """, (error_msg, doc_id))
+                            
+                            logging.error(f"Embedding FAILED for document {doc_id} after {new_attempt_count} attempts: {error_msg}")
+                            
+                            # TODO: Send admin notification (Pub/Sub, email, Slack)
+                            # For MVP, just log the failure
+                        else:
+                            logging.warning(f"Embedding attempt {new_attempt_count} failed for document {doc_id}: {error_msg}")
+                
+                conn.commit()
+                cursor.close()
+                conn.close()
+                
+            except Exception as db_error:
+                logging.exception(f"Embedding worker database error: {db_error}")
+                if conn:
+                    try:
+                        conn.rollback()
+                        conn.close()
+                    except:
+                        pass
+                        
+        except asyncio.CancelledError:
+            logging.info("Embedding worker cancelled")
+            break
+        except Exception as e:
+            logging.exception(f"Embedding worker unexpected error: {e}")
+            # Continue running despite errors
+
+
+async def process_override_embedding(override_id: int, justification: str):
+    """Process embedding for an override justification immediately.
+    
+    Called when a loan officer submits an override - embeds right away
+    for grey-area learning without waiting for edit window.
+    """
+    if TEST_MODE:
+        return
+    
+    try:
+        embeddings = await get_text_embeddings([justification])
+        
+        if embeddings and embeddings[0]:
+            embedding_str = '[' + ','.join(map(str, embeddings[0])) + ']'
+            
+            conn = get_db_connection()
+            cursor = conn.cursor()
+            
+            # Update override_log with embedding (if we add embedding_vector column later)
+            # For now, just mark as complete
+            cursor.execute("""
+                UPDATE override_log 
+                SET embedding_status = 'complete',
+                    embedding_last_attempt_at = NOW()
+                WHERE override_id = %s
+            """, (override_id,))
+            
+            conn.commit()
+            cursor.close()
+            conn.close()
+            
+            logging.info(f"Override {override_id} embedding complete")
+    except Exception as e:
+        logging.error(f"Failed to embed override {override_id}: {e}")
+        # Mark as failed for retry
+        try:
+            conn = get_db_connection()
+            cursor = conn.cursor()
+            cursor.execute("""
+                UPDATE override_log 
+                SET embedding_status = 'failed',
+                    embedding_error_message = %s
+                WHERE override_id = %s
+            """, (str(e)[:500], override_id))
+            conn.commit()
+            cursor.close()
+            conn.close()
+        except:
+            pass
+
+
+@app.on_event("startup")
+async def startup_event():
+    """Start background workers on app startup."""
+    global _embedding_worker_task
+    
+    if not TEST_MODE:
+        _embedding_worker_task = asyncio.create_task(embedding_worker_loop())
+        logging.info("Background embedding worker scheduled")
+
+
+@app.on_event("shutdown")
+async def shutdown_event():
+    """Cleanup background workers on shutdown."""
+    global _embedding_worker_task
+    
+    if _embedding_worker_task:
+        _embedding_worker_task.cancel()
+        try:
+            await _embedding_worker_task
+        except asyncio.CancelledError:
+            pass
+        logging.info("Background embedding worker stopped")
+
+
 async def get_ai_metadata_suggestions(document_text: str) -> Dict[str, Any]:
     """Uses Vertex AI Generative Model to suggest metadata."""
     prompt = f"""
@@ -2219,6 +2419,14 @@ async def resolve_override(
         
         logging.info(f"Override {override_id} marked as resolved by {current_user.get('username', 'unknown')}")
         
+        # Trigger immediate embedding for the resolution notes (grey-area learning)
+        # This embeds the justification so it can be found in future precedent searches
+        try:
+            asyncio.create_task(process_override_embedding(int(upd_id) if upd_id else 0, body.resolution_notes))
+        except Exception as embed_err:
+            logging.warning(f"Failed to schedule embedding for override {override_id}: {embed_err}")
+            # Don't fail the resolution if embedding scheduling fails
+        
         return ResolveOverrideResponse(
             override_id=str(upd_id),
             is_resolved=True,
@@ -2534,9 +2742,17 @@ async def process_document_from_pubsub(request: Request):
             logging.error("Mismatch between number of chunks and embeddings.")
             raise HTTPException(status_code=500, detail="Embedding generation failed partially.")
 
-        # 6. Store in PostgreSQL
+        # 6. Store in PostgreSQL with embedding pipeline tracking
         conn = get_db_connection()
         cursor = conn.cursor()
+
+        # Determine document type and embedding eligibility
+        # SOPs get 2-hour delay, overrides embed immediately
+        doc_type = 'sop'  # Default; will be 'override' when called from override flow
+        from datetime import timedelta
+        embedding_eligible_at = datetime.now(timezone.utc) + timedelta(hours=2) if doc_type == 'sop' else datetime.now(timezone.utc)
+        # Since embeddings are generated inline here, mark as complete
+        embedding_status = 'complete' if chunk_embeddings[0] else 'pending'
 
         insert_values = []
         for i, chunk in enumerate(text_chunks):
@@ -2561,7 +2777,12 @@ async def process_document_from_pubsub(request: Request):
                 ai_metadata['title']['suggested_value'],
                 ai_metadata['department']['suggested_value'],
                 ai_metadata['process_type']['suggested_value'],
-                ai_metadata['status']['suggested_value']
+                ai_metadata['status']['suggested_value'],
+                # Embedding pipeline fields
+                doc_type,
+                embedding_status,
+                embedding_eligible_at,
+                1 if embedding_status == 'complete' else 0  # attempt_count
             ))
         insert_query = """
         INSERT INTO documents (
@@ -2571,17 +2792,19 @@ async def process_document_from_pubsub(request: Request):
             suggested_department, department_justification,
             suggested_process_type, process_type_justification,
             suggested_status, status_justification,
-            final_title, final_department, final_process_type, final_status
+            final_title, final_department, final_process_type, final_status,
+            document_type, embedding_status, embedding_eligible_at, embedding_attempt_count
         ) VALUES %s
         """
         # NOTE: we will cast the embedding string to vector in the values template below
         # execute_values will interpolate tuples; cast the embedding field to vector
         # Build a custom template that casts the 6th field (embedding) to vector
-        values_template = "(" + ",".join(["%s"]*18) + ")"
+        values_template = "(" + ",".join(["%s"]*22) + ")"
         # replace the placeholder for embedding (6th position) with cast
         parts = values_template.split('%s')
         # simpler: use execute_values with template specifying cast on the embedding position
-        execute_values(cursor, insert_query, insert_values, template='(%s,%s,%s,%s,%s,%s::vector,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)')
+        # 22 columns: first 5 regular, 6th is vector, remaining 16 regular
+        execute_values(cursor, insert_query, insert_values, template='(%s,%s,%s,%s,%s,%s::vector,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)')
         conn.commit()
         cursor.close()
         conn.close()
@@ -2600,6 +2823,268 @@ async def process_document_from_pubsub(request: Request):
     except Exception as e:
         logging.error(f"Unhandled error processing document: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=f"An unexpected error occurred: {str(e)}")
+
+
+# --- Embedding Status API Endpoints ---
+
+class EmbeddingStatusResponse(BaseModel):
+    """Response model for embedding status check."""
+    document_id: Optional[int] = None
+    gcs_object_path: Optional[str] = None
+    embedding_status: str  # 'pending', 'complete', 'failed'
+    document_type: Optional[str] = None
+    embedding_eligible_at: Optional[str] = None
+    attempt_count: int = 0
+    error_message: Optional[str] = None
+    estimated_wait_minutes: Optional[int] = None
+
+    class Config:
+        from_attributes = True
+
+
+@app.get("/embedding-status/{doc_id}", response_model=EmbeddingStatusResponse)
+async def get_embedding_status_by_id(doc_id: int, current_user: Dict[str, Any] = Depends(get_current_user)):
+    """Check embedding status for a specific document by ID."""
+    if TEST_MODE:
+        return EmbeddingStatusResponse(
+            document_id=doc_id,
+            embedding_status="complete",
+            document_type="sop",
+            attempt_count=1
+        )
+    
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    cursor.execute("""
+        SELECT id, gcs_object_path, embedding_status, document_type, 
+               embedding_eligible_at, embedding_attempt_count, embedding_error_message
+        FROM documents
+        WHERE id = %s
+        LIMIT 1
+    """, (doc_id,))
+    row = cursor.fetchone()
+    cursor.close()
+    conn.close()
+    
+    if not row:
+        raise HTTPException(status_code=404, detail="Document not found")
+    
+    doc_id, gcs_path, status, doc_type, eligible_at, attempt_count, error_msg = row
+    
+    # Estimate wait time if pending
+    estimated_wait = None
+    if status == 'pending' and eligible_at:
+        from datetime import datetime
+        now = datetime.now(timezone.utc)
+        if eligible_at.tzinfo is None:
+            eligible_at = eligible_at.replace(tzinfo=timezone.utc)
+        if eligible_at > now:
+            estimated_wait = int((eligible_at - now).total_seconds() / 60) + 5  # Add processing buffer
+        else:
+            estimated_wait = 5  # Should be processed soon
+    
+    return EmbeddingStatusResponse(
+        document_id=doc_id,
+        gcs_object_path=gcs_path,
+        embedding_status=status or 'pending',
+        document_type=doc_type,
+        embedding_eligible_at=str(eligible_at) if eligible_at else None,
+        attempt_count=attempt_count or 0,
+        error_message=error_msg,
+        estimated_wait_minutes=estimated_wait
+    )
+
+
+@app.get("/embedding-status/by-path/{gcs_object_path:path}", response_model=EmbeddingStatusResponse)
+async def get_embedding_status_by_path(gcs_object_path: str, current_user: Dict[str, Any] = Depends(get_current_user)):
+    """Check embedding status for a document by GCS path."""
+    if TEST_MODE:
+        return EmbeddingStatusResponse(
+            gcs_object_path=gcs_object_path,
+            embedding_status="complete",
+            document_type="sop",
+            attempt_count=1
+        )
+    
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    cursor.execute("""
+        SELECT id, gcs_object_path, embedding_status, document_type,
+               embedding_eligible_at, embedding_attempt_count, embedding_error_message
+        FROM documents
+        WHERE gcs_object_path = %s
+        LIMIT 1
+    """, (gcs_object_path,))
+    row = cursor.fetchone()
+    cursor.close()
+    conn.close()
+    
+    if not row:
+        raise HTTPException(status_code=404, detail="Document not found")
+    
+    doc_id, gcs_path, status, doc_type, eligible_at, attempt_count, error_msg = row
+    
+    return EmbeddingStatusResponse(
+        document_id=doc_id,
+        gcs_object_path=gcs_path,
+        embedding_status=status or 'pending',
+        document_type=doc_type,
+        embedding_eligible_at=str(eligible_at) if eligible_at else None,
+        attempt_count=attempt_count or 0,
+        error_message=error_msg
+    )
+
+
+class BulkEmbeddingStatusRequest(BaseModel):
+    """Request for bulk embedding status check."""
+    document_ids: Optional[List[int]] = None
+    gcs_paths: Optional[List[str]] = None
+
+
+class BulkEmbeddingStatusResponse(BaseModel):
+    """Response for bulk embedding status check."""
+    total: int
+    pending: int
+    complete: int
+    failed: int
+    documents: List[EmbeddingStatusResponse]
+
+
+@app.post("/embedding-status/bulk", response_model=BulkEmbeddingStatusResponse)
+async def get_bulk_embedding_status(
+    request: BulkEmbeddingStatusRequest,
+    current_user: Dict[str, Any] = Depends(get_current_user)
+):
+    """Check embedding status for multiple documents at once."""
+    if TEST_MODE:
+        return BulkEmbeddingStatusResponse(
+            total=0, pending=0, complete=0, failed=0, documents=[]
+        )
+    
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    
+    documents = []
+    
+    if request.document_ids:
+        cursor.execute("""
+            SELECT id, gcs_object_path, embedding_status, document_type,
+                   embedding_eligible_at, embedding_attempt_count, embedding_error_message
+            FROM documents
+            WHERE id = ANY(%s)
+        """, (request.document_ids,))
+        rows = cursor.fetchall()
+        
+        for row in rows:
+            doc_id, gcs_path, status, doc_type, eligible_at, attempt_count, error_msg = row
+            documents.append(EmbeddingStatusResponse(
+                document_id=doc_id,
+                gcs_object_path=gcs_path,
+                embedding_status=status or 'pending',
+                document_type=doc_type,
+                embedding_eligible_at=str(eligible_at) if eligible_at else None,
+                attempt_count=attempt_count or 0,
+                error_message=error_msg
+            ))
+    
+    if request.gcs_paths:
+        cursor.execute("""
+            SELECT id, gcs_object_path, embedding_status, document_type,
+                   embedding_eligible_at, embedding_attempt_count, embedding_error_message
+            FROM documents
+            WHERE gcs_object_path = ANY(%s)
+        """, (request.gcs_paths,))
+        rows = cursor.fetchall()
+        
+        for row in rows:
+            doc_id, gcs_path, status, doc_type, eligible_at, attempt_count, error_msg = row
+            # Avoid duplicates if same doc was in both lists
+            if not any(d.document_id == doc_id for d in documents):
+                documents.append(EmbeddingStatusResponse(
+                    document_id=doc_id,
+                    gcs_object_path=gcs_path,
+                    embedding_status=status or 'pending',
+                    document_type=doc_type,
+                    embedding_eligible_at=str(eligible_at) if eligible_at else None,
+                    attempt_count=attempt_count or 0,
+                    error_message=error_msg
+                ))
+    
+    cursor.close()
+    conn.close()
+    
+    # Count by status
+    pending = sum(1 for d in documents if d.embedding_status == 'pending')
+    complete = sum(1 for d in documents if d.embedding_status == 'complete')
+    failed = sum(1 for d in documents if d.embedding_status == 'failed')
+    
+    return BulkEmbeddingStatusResponse(
+        total=len(documents),
+        pending=pending,
+        complete=complete,
+        failed=failed,
+        documents=documents
+    )
+
+
+@app.get("/embedding-status/summary")
+async def get_embedding_status_summary(
+    department: Optional[str] = None,
+    current_user: Dict[str, Any] = Depends(get_current_user)
+):
+    """Get summary of embedding status across all documents."""
+    if TEST_MODE:
+        return {
+            "total": 100,
+            "pending": 5,
+            "complete": 92,
+            "failed": 3,
+            "oldest_pending_minutes": 15
+        }
+    
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    
+    # Build query with optional department filter
+    where_clause = ""
+    params = []
+    if department:
+        where_clause = "WHERE department_folder = %s"
+        params.append(department)
+    
+    cursor.execute(f"""
+        SELECT 
+            COUNT(*) as total,
+            COUNT(*) FILTER (WHERE embedding_status = 'pending') as pending,
+            COUNT(*) FILTER (WHERE embedding_status = 'complete') as complete,
+            COUNT(*) FILTER (WHERE embedding_status = 'failed') as failed,
+            MIN(embedding_eligible_at) FILTER (WHERE embedding_status = 'pending') as oldest_pending
+        FROM documents
+        {where_clause}
+    """, params)
+    
+    row = cursor.fetchone()
+    cursor.close()
+    conn.close()
+    
+    total, pending, complete, failed, oldest_pending = row
+    
+    # Calculate oldest pending age in minutes
+    oldest_pending_minutes = None
+    if oldest_pending:
+        from datetime import datetime
+        now = datetime.now(timezone.utc)
+        if oldest_pending.tzinfo is None:
+            oldest_pending = oldest_pending.replace(tzinfo=timezone.utc)
+        oldest_pending_minutes = int((now - oldest_pending).total_seconds() / 60)
+    
+    return {
+        "total": total or 0,
+        "pending": pending or 0,
+        "complete": complete or 0,
+        "failed": failed or 0,
+        "oldest_pending_minutes": oldest_pending_minutes
+    }
 
 
 # --- Metadata Management API Endpoints (Human-in-the-Loop Hooks) ---

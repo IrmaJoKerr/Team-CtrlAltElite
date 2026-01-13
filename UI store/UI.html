@@ -710,6 +710,86 @@
 			font-size: 48px;
 			margin-bottom: 10px;
 		}
+
+		/* Embedding Status Banner */
+		.embedding-banner {
+			background: linear-gradient(135deg, #667eea15 0%, #764ba215 100%);
+			border: 1px solid #667eea40;
+			border-radius: 8px;
+			padding: 16px 20px;
+			margin-bottom: 20px;
+		}
+
+		.embedding-banner-content {
+			display: flex;
+			align-items: center;
+			gap: 15px;
+			margin-bottom: 12px;
+		}
+
+		.embedding-spinner {
+			width: 24px;
+			height: 24px;
+			border: 3px solid #667eea30;
+			border-top-color: #667eea;
+			border-radius: 50%;
+			animation: spin 1s linear infinite;
+		}
+
+		.embedding-text {
+			flex: 1;
+		}
+
+		.embedding-text strong {
+			display: block;
+			color: #667eea;
+			margin-bottom: 4px;
+		}
+
+		.embedding-text span {
+			font-size: 13px;
+			color: #666;
+		}
+
+		.embedding-progress {
+			height: 6px;
+			background: #e0e0e0;
+			border-radius: 3px;
+			overflow: hidden;
+		}
+
+		.embedding-progress-bar {
+			height: 100%;
+			background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+			border-radius: 3px;
+			transition: width 0.5s ease;
+		}
+
+		.embedding-banner.complete {
+			background: linear-gradient(135deg, #28a74515 0%, #20c99715 100%);
+			border-color: #28a74540;
+		}
+
+		.embedding-banner.complete .embedding-spinner {
+			display: none;
+		}
+
+		.embedding-banner.complete .embedding-text strong {
+			color: #28a745;
+		}
+
+		.embedding-banner.failed {
+			background: linear-gradient(135deg, #dc354515 0%, #c8210015 100%);
+			border-color: #dc354540;
+		}
+
+		.embedding-banner.failed .embedding-spinner {
+			display: none;
+		}
+
+		.embedding-banner.failed .embedding-text strong {
+			color: #dc3545;
+		}
 	</style>
 </head>
 
@@ -761,6 +841,20 @@
 				<!-- UPLOAD SECTION -->
 				<div id="upload" class="section active">
 					<div id="uploadStatus" class="status-message"></div>
+
+					<!-- Embedding Status Banner -->
+					<div id="embeddingBanner" class="embedding-banner" style="display: none;">
+						<div class="embedding-banner-content">
+							<div class="embedding-spinner"></div>
+							<div class="embedding-text">
+								<strong>Processing document...</strong>
+								<span id="embeddingMessage">Generating embeddings for search. This typically takes 2-5 minutes.</span>
+							</div>
+						</div>
+						<div class="embedding-progress">
+							<div id="embeddingProgress" class="embedding-progress-bar" style="width: 0%"></div>
+						</div>
+					</div>
 
 					<div class="box">
 						<div class="box-title">Upload Document</div>
@@ -1166,17 +1260,113 @@ Success rate: 82% with this approach.</textarea>
 			try {
 				// Simulated upload - in production this calls /document-uploads
 				await new Promise(resolve => setTimeout(resolve, 1500));
-				showStatus('uploadStatus', 'Document uploaded and processed successfully!', 'success');
+				showStatus('uploadStatus', 'Document uploaded! Now processing...', 'success');
+				
+				// Show embedding banner and start polling
+				showEmbeddingBanner('pending', 'Generating embeddings for search. This typically takes 2-5 minutes.');
+				
+				// In production, this would be the actual document ID returned from upload
+				const mockDocId = Math.floor(Math.random() * 1000);
+				startEmbeddingPolling(mockDocId);
+				
+				// Reset form after delay
 				setTimeout(() => {
 					elements.resetBtn.click();
 				}, 2000);
 			} catch (error) {
 				showStatus('uploadStatus', `Error: ${error.message}`, 'error');
+				showEmbeddingBanner('failed', `Upload failed: ${error.message}`);
 			} finally {
 				elements.uploadBtn.disabled = false;
 				elements.uploadBtn.textContent = 'Upload & Process';
 			}
 		});
+
+		// Embedding Status Functions
+		function showEmbeddingBanner(status, message) {
+			const banner = document.getElementById('embeddingBanner');
+			const messageEl = document.getElementById('embeddingMessage');
+			const progressBar = document.getElementById('embeddingProgress');
+			
+			banner.style.display = 'block';
+			banner.className = 'embedding-banner';
+			messageEl.textContent = message;
+			
+			if (status === 'complete') {
+				banner.classList.add('complete');
+				progressBar.style.width = '100%';
+				setTimeout(() => {
+					banner.style.display = 'none';
+				}, 5000);
+			} else if (status === 'failed') {
+				banner.classList.add('failed');
+				progressBar.style.width = '0%';
+			} else {
+				// pending - animate progress
+				progressBar.style.width = '30%';
+			}
+		}
+		
+		function hideEmbeddingBanner() {
+			document.getElementById('embeddingBanner').style.display = 'none';
+		}
+		
+		let embeddingPollInterval = null;
+		
+		async function startEmbeddingPolling(docId) {
+			let pollCount = 0;
+			const maxPolls = 30; // 5 minutes at 10s intervals
+			
+			// Clear any existing polling
+			if (embeddingPollInterval) {
+				clearInterval(embeddingPollInterval);
+			}
+			
+			embeddingPollInterval = setInterval(async () => {
+				pollCount++;
+				const progressBar = document.getElementById('embeddingProgress');
+				
+				// Update progress bar
+				const progress = Math.min(30 + (pollCount * 2.5), 95);
+				progressBar.style.width = progress + '%';
+				
+				try {
+					// In production, this calls GET /embedding-status/{docId}
+					// For demo, simulate completion after ~20 seconds
+					if (pollCount >= 2) {
+						clearInterval(embeddingPollInterval);
+						showEmbeddingBanner('complete', 'Embedding complete! Document is now searchable.');
+						return;
+					}
+					
+					/* Production code:
+					const response = await fetch(`${API_BASE}/embedding-status/${docId}`, {
+						headers: { 'Authorization': `Bearer ${authToken}` }
+					});
+					const data = await response.json();
+					
+					if (data.embedding_status === 'complete') {
+						clearInterval(embeddingPollInterval);
+						showEmbeddingBanner('complete', 'Embedding complete! Document is now searchable.');
+					} else if (data.embedding_status === 'failed') {
+						clearInterval(embeddingPollInterval);
+						showEmbeddingBanner('failed', `Embedding failed: ${data.error_message || 'Unknown error'}`);
+					} else {
+						const eta = data.estimated_wait_minutes || 5;
+						document.getElementById('embeddingMessage').textContent = 
+							`Processing... Estimated ${eta} minutes remaining.`;
+					}
+					*/
+				} catch (error) {
+					console.error('Embedding status check failed:', error);
+				}
+				
+				if (pollCount >= maxPolls) {
+					clearInterval(embeddingPollInterval);
+					showEmbeddingBanner('failed', 'Embedding timed out. Please check document status.');
+				}
+			}, 10000); // Poll every 10 seconds
+		}
 
 		elements.resetBtn.addEventListener('click', () => {
 			elements.fileInput.value = '';
