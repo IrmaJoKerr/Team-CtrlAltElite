@@ -34,7 +34,7 @@ except Exception:
         TextEmbeddingModel = None
         GenerativeModel = None
 from google.auth.transport.requests import Request as GoogleAuthRequest
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 import uuid
 
 from fastapi import FastAPI, Request, HTTPException, Depends, Header
@@ -1627,6 +1627,25 @@ class PrecedentDetailsResponse(BaseModel):
     query_text: Optional[str] = None
 
 
+class DemographicBreakdown(BaseModel):
+    """Demographic breakdown of customers in unresolved cases."""
+    category: str  # e.g., "high-earning", "mid-income", "low-income"
+    count: int
+    percentage: float = Field(ge=0.0, le=100.0)
+
+
+class UnresolvedMetricsResponse(BaseModel):
+    """Aggregated metrics for unresolved override cases."""
+    total_cases: int
+    unique_officers: int
+    time_period_days: int
+    time_period_label: str  # e.g., "4 months"
+    period_start_date: str  # ISO format
+    period_end_date: str  # ISO format
+    demographics: List[DemographicBreakdown] = []
+    department_filter: Optional[str] = None  # Which department was filtered (if any)
+
+
 # --- Upload Models & Endpoints ---
 
 from fastapi import UploadFile, File
@@ -2297,6 +2316,130 @@ async def get_precedent_details(
     except Exception as e:
         logging.exception(f"Failed to retrieve precedent details for {override_id}")
         raise HTTPException(status_code=500, detail=f"Failed to retrieve precedent: {str(e)[:100]}")
+    finally:
+        cursor.close()
+        conn.close()
+
+
+@app.get('/metrics/unresolved-cases', response_model=UnresolvedMetricsResponse)
+async def get_unresolved_metrics(
+    department: Optional[str] = None,
+    days: int = 120,
+    current_user: Dict[str, Any] = Depends(get_current_user)
+):
+    """
+    Retrieve aggregated metrics for unresolved override cases.
+    
+    Provides:
+    - Total count of unresolved cases
+    - Count of unique officers involved
+    - Time period analyzed
+    - Customer demographic breakdown
+    
+    Args:
+        department: Optional filter by department (e.g., 'loans')
+        days: Time period in days (default 120 = ~4 months)
+        current_user: Current authenticated user (RBAC enforced)
+    
+    Returns:
+        UnresolvedMetricsResponse with aggregated statistics
+    """
+    # RBAC: Allow manager, compliance roles
+    user_role = current_user.get('role', 'officer')
+    if user_role not in ['manager', 'compliance']:
+        raise HTTPException(
+            status_code=403,
+            detail="Only managers and compliance officers can view metrics"
+        )
+    
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    
+    try:
+        # Calculate date range
+        end_date = datetime.now()
+        start_date = end_date - timedelta(days=days)
+        
+        # Build base query
+        where_clauses = ["is_resolved = FALSE", f"created_at >= '{start_date.isoformat()}'"]
+        if department:
+            where_clauses.append(f"LOWER(user_department) = LOWER('{department}')")
+        
+        where_sql = " AND ".join(where_clauses)
+        
+        # Query 1: Total cases and unique officers
+        cursor.execute(f"""
+            SELECT 
+                COUNT(DISTINCT override_id) as total_cases,
+                COUNT(DISTINCT user_id) as unique_officers
+            FROM override_log
+            WHERE {where_sql}
+        """)
+        
+        row = cursor.fetchone()
+        total_cases = row[0] if row else 0
+        unique_officers = row[1] if row else 0
+        
+        # Query 2: Demographic breakdown
+        # Assumes customer demographic info is in override_log or linked via customer_id
+        # For now, we'll use a hardcoded distribution (in production, query actual customer data)
+        # This would typically join with a customers table with income level
+        cursor.execute(f"""
+            SELECT 
+                COALESCE(customer_demographic, 'unknown') as demographic,
+                COUNT(*) as count
+            FROM override_log
+            WHERE {where_sql}
+            GROUP BY customer_demographic
+            ORDER BY count DESC
+        """)
+        
+        demographic_rows = cursor.fetchall()
+        
+        # Calculate demographic breakdown with percentages
+        demographics = []
+        if total_cases > 0:
+            for demo_row in demographic_rows:
+                category = demo_row[0] or 'unknown'
+                count = demo_row[1]
+                percentage = round((count / total_cases) * 100, 1)
+                demographics.append(DemographicBreakdown(
+                    category=category,
+                    count=count,
+                    percentage=percentage
+                ))
+        
+        # Determine time period label
+        if days == 30:
+            period_label = "1 month"
+        elif days == 60:
+            period_label = "2 months"
+        elif days == 90:
+            period_label = "3 months"
+        elif days == 120:
+            period_label = "4 months"
+        elif days == 365:
+            period_label = "1 year"
+        else:
+            period_label = f"{days} days"
+        
+        return UnresolvedMetricsResponse(
+            total_cases=total_cases,
+            unique_officers=unique_officers,
+            time_period_days=days,
+            time_period_label=period_label,
+            period_start_date=start_date.isoformat(),
+            period_end_date=end_date.isoformat(),
+            demographics=demographics,
+            department_filter=department
+        )
+    
+    except Exception as e:
+        logging.exception(f"Failed to retrieve unresolved metrics")
+        raise HTTPException(
+            status_code=500,
+            detail=f"Failed to retrieve metrics: {str(e)[:100]}"
+        )
     finally:
         cursor.close()
         conn.close()
