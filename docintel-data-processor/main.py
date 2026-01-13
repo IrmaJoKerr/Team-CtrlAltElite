@@ -6,7 +6,7 @@ from typing import List, Dict, Any, Optional
 import asyncio
 from concurrent.futures import ThreadPoolExecutor
 
-from fastapi import FastAPI, Request, HTTPException
+from fastapi import FastAPI, Request, HTTPException, Depends, Header
 from google.cloud import storage, pubsub_v1, secretmanager
 from vertexai.preview.generative_models import GenerativeModel, Part
 from vertexai.language_models import TextEmbeddingModel
@@ -69,6 +69,47 @@ def get_db_connection():
     except Exception as e:
         logging.error(f"Failed to connect to database: {e}", exc_info=True)
         raise
+
+
+def get_user_by_api_key(api_key: str) -> Optional[Dict[str, Any]]:
+    """Look up a user by API key in the database."""
+    if not api_key:
+        return None
+    conn = get_db_connection()
+    try:
+        cur = conn.cursor()
+        cur.execute("SELECT id, username, role, departments FROM users WHERE api_key = %s LIMIT 1", (api_key,))
+        row = cur.fetchone()
+        cur.close()
+        conn.close()
+        if not row:
+            return None
+        return {"id": row[0], "username": row[1], "role": row[2], "departments": row[3]}
+    except Exception:
+        try:
+            conn.close()
+        except Exception:
+            pass
+        return None
+
+
+async def get_current_user(authorization: Optional[str] = Header(None)) -> Dict[str, Any]:
+    """FastAPI dependency to resolve the current user from Authorization header.
+
+    Accepts: 'Bearer <api_key>' or just the api_key in the header.
+    Raises 401 if not found.
+    """
+    if not authorization:
+        raise HTTPException(status_code=401, detail="Missing Authorization header")
+
+    token = authorization
+    if authorization.lower().startswith("bearer "):
+        token = authorization.split(None, 1)[1]
+
+    user = get_user_by_api_key(token)
+    if not user:
+        raise HTTPException(status_code=401, detail="Invalid API key")
+    return user
 
 def extract_text_from_pdf(gcs_blob) -> str:
     """Extracts text from a PDF blob."""
@@ -345,42 +386,64 @@ async def process_document_from_pubsub(request: Request):
 # --- Metadata Management API Endpoints (Human-in-the-Loop Hooks) ---
 
 @app.get("/document-metadata/{gcs_object_path:path}") # Use :path to allow slashes in path parameter
-async def get_document_metadata(gcs_object_path: str):
+async def get_document_metadata(gcs_object_path: str, current_user: Dict[str, Any] = Depends(get_current_user)):
     """Fetches current metadata for a document."""
     conn = get_db_connection()
     cursor = conn.cursor()
     cursor.execute("""
         SELECT
+            id,
             suggested_title, title_justification,
             suggested_department, department_justification,
             suggested_process_type, process_type_justification,
             suggested_status, status_justification,
             final_title, final_department, final_process_type, final_status,
-            review_status
+            review_status, department_folder
         FROM documents
         WHERE gcs_object_path = %s
         LIMIT 1
     """, (gcs_object_path,))
-    metadata = cursor.fetchone()
+    row = cursor.fetchone()
     cursor.close()
     conn.close()
 
-    if not metadata:
+    if not row:
         raise HTTPException(status_code=404, detail="Document metadata not found.")
 
-    keys = [
-        "suggested_title", "title_justification",
-        "suggested_department", "department_justification",
-        "suggested_process_type", "process_type_justification",
-        "suggested_status", "status_justification",
-        "final_title", "final_department", "final_process_type", "final_status",
-        "review_status"
-    ]
-    return dict(zip(keys, metadata))
+    (doc_id, suggested_title, title_justification,
+     suggested_department, department_justification,
+     suggested_process_type, process_type_justification,
+     suggested_status, status_justification,
+     final_title, final_department, final_process_type, final_status,
+     review_status, department_folder) = row
+
+    # Access control: allow managers full access; officers only their departments
+    user_role = current_user.get('role')
+    user_depts = current_user.get('departments') or []
+    if user_role != 'manager' and department_folder not in user_depts:
+        raise HTTPException(status_code=403, detail="You do not have permission to view this document.")
+
+    return {
+        "document_id": doc_id,
+        "suggested_title": suggested_title,
+        "title_justification": title_justification,
+        "suggested_department": suggested_department,
+        "department_justification": department_justification,
+        "suggested_process_type": suggested_process_type,
+        "process_type_justification": process_type_justification,
+        "suggested_status": suggested_status,
+        "status_justification": status_justification,
+        "final_title": final_title,
+        "final_department": final_department,
+        "final_process_type": final_process_type,
+        "final_status": final_status,
+        "review_status": review_status,
+        "department_folder": department_folder
+    }
 
 
 @app.put("/document-metadata/{gcs_object_path:path}")
-async def update_document_metadata(gcs_object_path: str, metadata_update: Dict[str, str]):
+async def update_document_metadata(gcs_object_path: str, metadata_update: Dict[str, str], current_user: Dict[str, Any] = Depends(get_current_user)):
     """Updates human-edited metadata fields for a document."""
     conn = get_db_connection()
     cursor = conn.cursor()
@@ -403,6 +466,41 @@ async def update_document_metadata(gcs_object_path: str, metadata_update: Dict[s
 
     if not update_fields:
         raise HTTPException(status_code=400, detail="No valid fields provided for update.")
+    # Fetch existing values for audit logging
+    cursor.execute("SELECT id, final_title, final_department, final_process_type, final_status FROM documents WHERE gcs_object_path = %s LIMIT 1", (gcs_object_path,))
+    existing = cursor.fetchone()
+    if not existing:
+        cursor.close()
+        conn.close()
+        raise HTTPException(status_code=404, detail="Document not found.")
+
+    document_id = existing[0]
+    existing_map = {
+        'final_title': existing[1],
+        'final_department': existing[2],
+        'final_process_type': existing[3],
+        'final_status': existing[4]
+    }
+
+    # Authorization: managers can edit any; officers only their departments
+    user_role = current_user.get('role')
+    user_depts = current_user.get('departments') or []
+    doc_dept = existing_map.get('final_department') or None
+    if user_role != 'manager':
+        # Determine target department if changing it, else use existing
+        target_dept = metadata_update.get('final_department', doc_dept)
+        if target_dept and target_dept not in user_depts:
+            cursor.close()
+            conn.close()
+            raise HTTPException(status_code=403, detail="You do not have permission to edit this document.")
+
+    # Perform audit logging for field-level changes
+    for idx, field_exp in enumerate(['final_title', 'final_department', 'final_process_type', 'final_status']):
+        if field_exp in metadata_update:
+            old = existing_map.get(field_exp)
+            new = metadata_update[field_exp]
+            if str(old) != str(new):
+                cursor.execute("INSERT INTO audit_log (document_id, field, old_value, new_value, username) VALUES (%s,%s,%s,%s,%s)", (document_id, field_exp, old, new, current_user.get('username')))
 
     update_query = f"""
         UPDATE documents
@@ -417,39 +515,88 @@ async def update_document_metadata(gcs_object_path: str, metadata_update: Dict[s
     cursor.close()
     conn.close()
 
-    if cursor.rowcount == 0:
-        raise HTTPException(status_code=404, detail="Document not found or no changes made.")
-    
-    logging.info(f"Updated metadata for {gcs_object_path}")
+    logging.info(f"Updated metadata for {gcs_object_path} by {current_user.get('username')}")
     return {"message": f"Metadata for {gcs_object_path} updated successfully."}
 
 
 @app.post("/document-metadata/{gcs_object_path:path}/confirm")
-async def confirm_document_metadata(gcs_object_path: str):
-    """Confirms final metadata for a document."""
+async def confirm_document_metadata(gcs_object_path: str, current_user: Dict[str, Any] = Depends(get_current_user)):
+    """Confirms final metadata for a document, creates a version, and records approval."""
     conn = get_db_connection()
     cursor = conn.cursor()
-    cursor.execute("""
-        UPDATE documents
-        SET review_status = 'approved',
-            last_reviewed_by = 'human_reviewer',
-            last_reviewed_at = NOW(),
-            updated_at = NOW()
-        WHERE gcs_object_path = %s
-    """, (gcs_object_path,))
+
+    # Fetch document and ensure it exists
+    cursor.execute("SELECT id, original_gcs_filename, final_department FROM documents WHERE gcs_object_path = %s LIMIT 1", (gcs_object_path,))
+    row = cursor.fetchone()
+    if not row:
+        cursor.close()
+        conn.close()
+        raise HTTPException(status_code=404, detail="Document not found.")
+
+    documents_id, original_name, final_department = row
+
+    if not final_department:
+        cursor.close()
+        conn.close()
+        raise HTTPException(status_code=400, detail="Cannot confirm: final_department is not set.")
+
+    # Authorization: managers can confirm any; officers only their departments
+    user_role = current_user.get('role')
+    user_depts = current_user.get('departments') or []
+    if user_role != 'manager' and final_department not in user_depts:
+        cursor.close()
+        conn.close()
+        raise HTTPException(status_code=403, detail="You do not have permission to confirm this document.")
+
+    # Ensure sop_documents exists (document-level registry)
+    cursor.execute("SELECT id FROM sop_documents WHERE original_gcs_filename = %s LIMIT 1", (original_name,))
+    sop_row = cursor.fetchone()
+    if sop_row:
+        sop_doc_id = sop_row[0]
+    else:
+        cursor.execute("INSERT INTO sop_documents (original_gcs_filename) VALUES (%s) RETURNING id", (original_name,))
+        sop_doc_id = cursor.fetchone()[0]
+
+    # Build payload from current document row
+    cursor.execute(
+        """
+        SELECT row_to_json(t) FROM (
+          SELECT suggested_title, title_justification, suggested_department, department_justification,
+                 suggested_process_type, process_type_justification, suggested_status, status_justification,
+                 final_title, final_department, final_process_type, final_status, review_status
+          FROM documents
+          WHERE gcs_object_path = %s LIMIT 1
+        ) t
+        """,
+        (gcs_object_path,)
+    )
+    payload_row = cursor.fetchone()
+    payload = payload_row[0] if payload_row else None
+
+    # Determine next version
+    cursor.execute("SELECT COALESCE(MAX(version),0) FROM sop_versions WHERE document_id = %s", (sop_doc_id,))
+    maxv = cursor.fetchone()[0]
+    next_version = maxv + 1
+
+    # Insert version
+    cursor.execute("INSERT INTO sop_versions (document_id, version, payload, created_by) VALUES (%s,%s,%s,%s)", (sop_doc_id, next_version, json.dumps(payload), current_user.get('username')))
+
+    # Update documents as approved
+    cursor.execute("UPDATE documents SET review_status = 'approved', last_reviewed_by = %s, last_reviewed_at = NOW(), updated_at = NOW() WHERE gcs_object_path = %s", (current_user.get('username'), gcs_object_path))
+
+    # Audit the approval
+    cursor.execute("INSERT INTO audit_log (document_id, field, old_value, new_value, username) VALUES (%s,%s,%s,%s,%s)", (documents_id, 'review_status', 'pending', 'approved', current_user.get('username')))
+
     conn.commit()
     cursor.close()
     conn.close()
 
-    if cursor.rowcount == 0:
-        raise HTTPException(status_code=404, detail="Document not found or no changes made.")
-    
-    logging.info(f"Confirmed metadata for {gcs_object_path}")
-    return {"message": f"Document {gcs_object_path} metadata confirmed and approved."}
+    logging.info(f"Confirmed metadata for {gcs_object_path} by {current_user.get('username')}")
+    return {"message": f"Document {gcs_object_path} metadata confirmed and approved.", "version": next_version}
 
 
 @app.delete("/document-metadata/{gcs_object_path:path}/discard")
-async def discard_document(gcs_object_path: str):
+async def discard_document(gcs_object_path: str, current_user: Dict[str, Any] = Depends(get_current_user)):
     """Discards a document, deleting from GCS and database."""
     try:
         # Delete from GCS
@@ -464,6 +611,22 @@ async def discard_document(gcs_object_path: str):
         # Delete from Database
         conn = get_db_connection()
         cursor = conn.cursor()
+        # check permission: find department_folder
+        cursor.execute("SELECT id, department_folder FROM documents WHERE gcs_object_path = %s LIMIT 1", (gcs_object_path,))
+        doc = cursor.fetchone()
+        if not doc:
+            cursor.close()
+            conn.close()
+            raise HTTPException(status_code=404, detail="Document not found in DB for deletion.")
+
+        document_id, department_folder = doc
+        user_role = current_user.get('role')
+        user_depts = current_user.get('departments') or []
+        if user_role != 'manager' and department_folder not in user_depts:
+            cursor.close()
+            conn.close()
+            raise HTTPException(status_code=403, detail="You do not have permission to delete this document.")
+
         cursor.execute("DELETE FROM documents WHERE gcs_object_path = %s", (gcs_object_path,))
         deleted = cursor.rowcount
         conn.commit()
