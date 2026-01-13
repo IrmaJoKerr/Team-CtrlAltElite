@@ -4,7 +4,16 @@ import functions_framework
 import logging
 from google.cloud import storage, secretmanager
 from google.cloud.sql.connector import Connector
-from google.cloud.aiplatform import RagCorpusServiceClient, ImportRagFilesRequest
+try:
+    # Newer versions expose the RAG client here
+    from google.cloud.aiplatform import RagCorpusServiceClient, ImportRagFilesRequest
+except Exception:
+    try:
+        # Older/newer packaging may expose the v1 client module
+        from google.cloud.aiplatform_v1 import RagCorpusServiceClient, ImportRagFilesRequest
+    except Exception:
+        RagCorpusServiceClient = None
+        ImportRagFilesRequest = None
 import pg8000.dbapi # Required for Connector to work with pg8000
 import uuid # For generating UUIDs for SOPs if needed
 
@@ -159,28 +168,38 @@ def process_sop_document(cloud_event):
         # In a real system, RAG indexing would happen when a version becomes 'Active'.
         # For hackathon MVP, we'll index all ingested documents directly to simplify demo.
 
-        rag_corpus_service_client = RagCorpusServiceClient(
-            client_options={"api_endpoint": f"{REGION}-aiplatform.googleapis.com"}
-        )
+        if RagCorpusServiceClient is None or ImportRagFilesRequest is None:
+            logging.warning("RAG import client not available in this runtime; skipping RAG import.")
+        else:
+            rag_corpus_service_client = RagCorpusServiceClient(
+                client_options={"api_endpoint": f"{REGION}-aiplatform.googleapis.com"}
+            )
 
-        request = ImportRagFilesRequest(
-            parent=RAG_CORPUS_NAME,
-            import_rag_files_config=ImportRagFilesRequest.ImportRagFilesConfig(
-                gcs_source=ImportRagFilesRequest.ImportRagFilesConfig.GcsSource(
-                    uris=[gcs_uri]
-                ),
-                rag_file_chunking_config=ImportRagFilesRequest.ImportRagFilesConfig.RagFileChunkingConfig(
-                    chunk_size=512 # You can adjust chunk size
+            request = ImportRagFilesRequest(
+                parent=RAG_CORPUS_NAME,
+                import_rag_files_config=ImportRagFilesRequest.ImportRagFilesConfig(
+                    gcs_source=ImportRagFilesRequest.ImportRagFilesConfig.GcsSource(
+                        uris=[gcs_uri]
+                    ),
+                    rag_file_chunking_config=ImportRagFilesRequest.ImportRagFilesConfig.RagFileChunkingConfig(
+                        chunk_size=512 # You can adjust chunk size
+                    )
                 )
             )
-        )
 
-        logging.info(f"Importing {gcs_uri} to RAG Corpus {RAG_CORPUS_NAME}...")
-        operation = rag_corpus_service_client.import_rag_files(request=request)
-        # The import operation is asynchronous, so we don't wait for completion here for MVP.
-        # In production, you'd monitor this operation.
-        logging.info(f"Started RAG file import operation: {operation.operation.name}")
-        logging.info(f"Successfully processed {file_name}.")
+            logging.info(f"Importing {gcs_uri} to RAG Corpus {RAG_CORPUS_NAME}...")
+            operation = rag_corpus_service_client.import_rag_files(request=request)
+            # The import operation is asynchronous, so we don't wait for completion here for MVP.
+            # In production, you'd monitor this operation.
+            try:
+                op_name = getattr(operation, "operation", None)
+                if op_name is None:
+                    logging.info(f"Started RAG file import operation: {operation}")
+                else:
+                    logging.info(f"Started RAG file import operation: {op_name.name}")
+            except Exception:
+                logging.info("Started RAG file import operation (could not parse operation name)")
+            logging.info(f"Successfully processed {file_name}.")
 
     except Exception as e:
         logging.error(f"Error processing file {file_name}: {e}", exc_info=True)

@@ -8,10 +8,10 @@ RUN apt-get update && apt-get install -y \
 	&& rm -rf /var/lib/apt/lists/*
 
 # Allow statements and log messages to immediately appear in the logs
-ENV PYTHONUNBUFFERED True
+ENV PYTHONUNBUFFERED=True
 
 # Copy local code to the container image.
-ENV APP_HOME /app
+ENV APP_HOME=/app
 WORKDIR $APP_HOME
 COPY . ./
 
@@ -25,4 +25,4 @@ RUN pip install --upgrade pip
 RUN pip install ${PIP_FLAGS} -r requirements.txt
 
 # Run the web service on container startup.
-CMD exec functions-framework --target=process_sop_document --port=8080 --signature-type=cloudevent
+CMD ["functions-framework", "--target=process_sop_document", "--port=8080", "--signature-type=cloudevent"]
