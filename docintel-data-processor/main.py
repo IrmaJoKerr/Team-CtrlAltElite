@@ -11,8 +11,9 @@ import uuid
 from fastapi import FastAPI, Request, HTTPException, Depends, Header
 from fastapi.responses import HTMLResponse
 from google.cloud import storage, pubsub_v1, secretmanager
-from vertexai.preview.generative_models import GenerativeModel, Part
-from vertexai.language_models import TextEmbeddingModel
+from google.oauth2 import service_account
+from google.auth.transport.requests import AuthorizedSession
+import google.auth
 import psycopg2
 from psycopg2.extras import execute_values
 from pypdf import PdfReader # For PDF parsing
@@ -26,9 +27,27 @@ storage_client = storage.Client()
 secret_client = secretmanager.SecretManagerServiceClient()
 pubsub_publisher = pubsub_v1.PublisherClient() # For status updates or next steps
 
-# Vertex AI Models
-embedding_model = TextEmbeddingModel.from_pretrained("text-embedding-004")
-generative_model = GenerativeModel("gemini-pro")
+# Vertex/Endpoint config (use endpoints created in Vertex UI)
+EMBEDDING_ENDPOINT = os.environ.get('EMBEDDING_ENDPOINT')  # e.g. projects/PROJECT/locations/us-west1/endpoints/EMBEDDING_ID
+GENERATIVE_ENDPOINT = os.environ.get('GENERATIVE_ENDPOINT')  # e.g. projects/PROJECT/locations/us-west1/endpoints/GEN_ID
+
+# Authorized HTTP session (lazy)
+_AUTH_SESSION = None
+
+def get_authed_session():
+    global _AUTH_SESSION
+    if _AUTH_SESSION:
+        return _AUTH_SESSION
+    # Prefer ADC, fall back to service account key if provided
+    try:
+        creds, _ = google.auth.default()
+    except Exception:
+        key_path = os.environ.get('GOOGLE_APPLICATION_CREDENTIALS')
+        if not key_path:
+            raise RuntimeError('No Google credentials found (set GOOGLE_APPLICATION_CREDENTIALS or application default).')
+        creds = service_account.Credentials.from_service_account_file(key_path)
+    _AUTH_SESSION = AuthorizedSession(creds)
+    return _AUTH_SESSION
 
 # Environment Variables
 PROJECT_ID = os.environ.get('PROJECT_ID', 'ctrlaltelite-484111')
@@ -199,17 +218,57 @@ def chunk_text(text: str, chunk_size: int = 1000, overlap: int = 100) -> List[st
     return chunks
 
 async def get_text_embeddings(texts: List[str]) -> List[List[float]]:
-    """Generates embeddings for a list of texts using Vertex AI."""
+    """Generates embeddings for a list of texts using a Vertex Endpoint via REST.
+
+    Expects `EMBEDDING_ENDPOINT` to be set to the endpoint resource name
+    (projects/PROJECT/locations/LOCATION/endpoints/ENDPOINT_ID).
+    """
+    if not EMBEDDING_ENDPOINT:
+        raise RuntimeError('EMBEDDING_ENDPOINT not configured')
+
+    session = get_authed_session()
+    embeddings: List[List[float]] = []
+    def call_batch(batch_texts: List[str]):
+        url = f"https://{REGION}-aiplatform.googleapis.com/v1/{EMBEDDING_ENDPOINT}:predict"
+        payload = {"instances": [{"content": t} for t in batch_texts]}
+        resp = session.post(url, json=payload, timeout=60)
+        resp.raise_for_status()
+        return resp.json()
+
     try:
-        embeddings = []
         for i in range(0, len(texts), 250):
-            batch_texts = texts[i:i+250]
-            logging.info(f"Generating embeddings for batch {i/250 + 1}...")
-            response = await embedding_model.get_embeddings_async(batch_texts)
-            embeddings.extend([embedding.values for embedding in response.embeddings])
+            batch = texts[i:i+250]
+            logging.info(f"Generating embeddings for batch {i//250 + 1}...")
+            loop = asyncio.get_running_loop()
+            data = await loop.run_in_executor(None, call_batch, batch)
+            # Robust parsing for embedding shapes
+            preds = data.get('predictions') or data.get('outputs') or data.get('embeddings')
+            if preds is None:
+                raise ValueError('No predictions/embeddings in Vertex response')
+            # predictions may be list of lists (vectors) or list of dicts with 'embedding' key
+            for p in preds:
+                if isinstance(p, list):
+                    embeddings.append([float(x) for x in p])
+                elif isinstance(p, dict):
+                    if 'embedding' in p:
+                        embeddings.append([float(x) for x in p['embedding']])
+                    elif 'vector' in p:
+                        embeddings.append([float(x) for x in p['vector']])
+                    elif 'value' in p and isinstance(p['value'], list):
+                        embeddings.append([float(x) for x in p['value']])
+                    else:
+                        # try to extract first list-like value
+                        found = False
+                        for v in p.values():
+                            if isinstance(v, list):
+                                embeddings.append([float(x) for x in v])
+                                found = True
+                                break
+                        if not found:
+                            raise ValueError('Unrecognized embedding format')
         return embeddings
     except Exception as e:
-        logging.error(f"Failed to get text embeddings from Vertex AI: {e}", exc_info=True)
+        logging.error(f"Failed to get text embeddings from Vertex Endpoint: {e}", exc_info=True)
         raise
 
 async def get_ai_metadata_suggestions(document_text: str) -> Dict[str, Any]:
@@ -239,45 +298,78 @@ async def get_ai_metadata_suggestions(document_text: str) -> Dict[str, Any]:
     }}
     """
     loop = asyncio.get_running_loop()
+    if not GENERATIVE_ENDPOINT:
+        logging.warning('GENERATIVE_ENDPOINT not configured; skipping AI metadata suggestions')
+        return {
+            "title": {"suggested_value": None, "justification": "No generative endpoint configured.", "confidence_score": 0.0},
+            "department": {"suggested_value": None, "justification": "No generative endpoint configured.", "confidence_score": 0.0},
+            "process_type": {"suggested_value": None, "justification": "No generative endpoint configured.", "confidence_score": 0.0},
+            "status": {"suggested_value": None, "justification": "No generative endpoint configured.", "confidence_score": 0.0}
+        }
+
+    session = get_authed_session()
+    def call_generate():
+        url = f"https://{REGION}-aiplatform.googleapis.com/v1/{GENERATIVE_ENDPOINT}:predict"
+        payload = {"instances": [{"content": prompt}]}
+        resp = session.post(url, json=payload, timeout=120)
+        resp.raise_for_status()
+        return resp.json()
+
     try:
-        logging.info("Requesting AI metadata suggestions from Gemini-Pro (in thread)...")
-
-        def call_generate():
-            # Blocking call - run in threadpool
-            return generative_model.generate_content(prompt)
-
-        response = await loop.run_in_executor(None, call_generate)
-
-        # Robust parsing: validate path existence before accessing
+        data = await loop.run_in_executor(None, call_generate)
+        # Try to extract a textual response from common response shapes
         text_response = None
-        try:
-            cand = getattr(response, 'candidates', None)
-            if cand and len(cand) > 0:
-                content = getattr(cand[0], 'content', None)
-                if content and getattr(content, 'parts', None) and len(content.parts) > 0:
-                    part = content.parts[0]
-                    text_response = getattr(part, 'text', None)
-
-        except Exception:
-            text_response = None
+        preds = data.get('predictions') or data.get('outputs') or []
+        if isinstance(preds, list) and len(preds) > 0:
+            first = preds[0]
+            if isinstance(first, dict):
+                # common keys to check
+                for k in ('content','text','output','generated_text','candidates'):
+                    if k in first:
+                        if k == 'candidates' and isinstance(first[k], list) and len(first[k])>0:
+                            cand = first[k][0]
+                            # candidate may have 'content' or 'text'
+                            if isinstance(cand, dict):
+                                text_response = cand.get('content') or cand.get('text')
+                            else:
+                                text_response = str(cand)
+                            break
+                        else:
+                            val = first[k]
+                            if isinstance(val, str):
+                                text_response = val
+                                break
+                            elif isinstance(val, dict) and 'text' in val:
+                                text_response = val['text']
+                                break
+            elif isinstance(first, str):
+                text_response = first
 
         if not text_response:
-            raise ValueError('Unexpected Vertex response structure')
+            # As final fallback, try to stringify the first prediction
+            if isinstance(preds, list) and len(preds) > 0:
+                text_response = json.dumps(preds[0])
 
-        # strip markdown fences if present
-        if text_response.startswith("```json"):
-            # remove leading fence and optional trailing fence
-            try:
-                # find closing fence
-                end = text_response.rfind("```")
-                if end != -1:
-                    text_response = text_response[7:end]
-                else:
-                    text_response = text_response[7:]
-            except Exception:
+        # strip fences
+        if isinstance(text_response, str) and text_response.startswith("```json"):
+            end = text_response.rfind("```")
+            if end != -1:
+                text_response = text_response[7:end]
+            else:
                 text_response = text_response[7:]
 
-        parsed = json.loads(text_response)
+        parsed = {}
+        try:
+            parsed = json.loads(text_response) if text_response else {}
+        except Exception:
+            logging.exception('Failed to parse JSON from generative response')
+            return {
+                "title": {"suggested_value": None, "justification": "AI parsing failed.", "confidence_score": 0.0},
+                "department": {"suggested_value": None, "justification": "AI parsing failed.", "confidence_score": 0.0},
+                "process_type": {"suggested_value": None, "justification": "AI parsing failed.", "confidence_score": 0.0},
+                "status": {"suggested_value": None, "justification": "AI parsing failed.", "confidence_score": 0.0}
+            }
+
         return parsed
     except Exception as e:
         logging.error(f"Failed to get AI metadata suggestions: {e}", exc_info=True)
@@ -287,6 +379,132 @@ async def get_ai_metadata_suggestions(document_text: str) -> Dict[str, Any]:
             "process_type": {"suggested_value": None, "justification": "AI extraction failed.", "confidence_score": 0.0},
             "status": {"suggested_value": None, "justification": "AI extraction failed.", "confidence_score": 0.0}
         }
+
+
+@app.post('/rag-query')
+async def rag_query(body: Dict[str, Any], current_user: Dict[str, Any] = Depends(get_current_user)):
+    """Run a RAG-style query. Body: {"query": str, "department": str (optional), "top_k": int}
+
+    Returns: {answer, sources: [{path, snippet}], debug?}
+    """
+    query = body.get('query')
+    if not query:
+        raise HTTPException(status_code=400, detail="Missing 'query' in request body")
+    department = body.get('department')
+    top_k = int(body.get('top_k', 3))
+
+    # TEST_MODE: simple local behavior — return metadata summary
+    if TEST_MODE:
+        # find any version under local_test_store/versions matching department or first file
+        versions_root = os.path.join('local_test_store', 'versions')
+        candidates = []
+        if os.path.exists(versions_root):
+            for fn in os.listdir(versions_root):
+                dirp = os.path.join(versions_root, fn)
+                if os.path.isdir(dirp):
+                    # pick latest v*.json
+                    vfiles = sorted([p for p in os.listdir(dirp) if p.startswith('v') and p.endswith('.json')])
+                    if vfiles:
+                        path = os.path.join(dirp, vfiles[-1])
+                        data = local_read_json(path)
+                        if data:
+                            candidates.append({'path': path, 'snippet': data.get('final_title','')})
+        answer = f"TEST_MODE answer: found {len(candidates)} documents. Top: {candidates[0]['snippet'] if candidates else 'none'}"
+        return {"answer": answer, "sources": candidates}
+
+    # Production: generate embedding for query
+    loop = asyncio.get_running_loop()
+    try:
+        emb = await get_text_embeddings([query])
+        qvec = emb[0]
+        qvec_str = '[' + ','.join(map(str, qvec)) + ']'
+    except Exception as e:
+        logging.exception('Failed to generate query embedding')
+        raise HTTPException(status_code=500, detail='Embedding generation failed')
+
+    # Attempt pgvector nearest-neighbors search
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    try:
+        where = ''
+        params = []
+        if department:
+            where = 'WHERE department_folder = %s'
+            params.append(department)
+        sql = f"SELECT chunk_content, gcs_object_path FROM documents {where} ORDER BY embedding_vector <-> %s::vector LIMIT %s"
+        params.extend([qvec_str, top_k])
+        cursor.execute(sql, tuple(params))
+        rows = cursor.fetchall()
+        snippets = [{'path': r[1], 'snippet': r[0]} for r in rows]
+    except Exception:
+        # Fallback: simple text search
+        logging.exception('pgvector search failed, falling back to text search')
+        try:
+            if department:
+                cursor.execute("SELECT chunk_content, gcs_object_path FROM documents WHERE department_folder = %s AND chunk_content ILIKE %s LIMIT %s", (department, f"%{query}%", top_k))
+            else:
+                cursor.execute("SELECT chunk_content, gcs_object_path FROM documents WHERE chunk_content ILIKE %s LIMIT %s", (f"%{query}%", top_k))
+            rows = cursor.fetchall()
+            snippets = [{'path': r[1], 'snippet': r[0]} for r in rows]
+        except Exception:
+            logging.exception('Text search fallback also failed')
+            snippets = []
+    finally:
+        cursor.close()
+        conn.close()
+
+    # Build prompt for generative model
+    context_text = '\n\n'.join([s['snippet'] for s in snippets])[:4000]
+    prompt = f"Answer the user query using the following document snippets. Query: {query}\n\nSnippets:\n{context_text}\n\nProvide a concise answer and list sources."
+
+    if not GENERATIVE_ENDPOINT:
+        logging.warning('GENERATIVE_ENDPOINT not configured; returning snippets as answer')
+        return {"answer": context_text or "", "sources": snippets}
+
+    session = get_authed_session()
+    def call_generate():
+        url = f"https://{REGION}-aiplatform.googleapis.com/v1/{GENERATIVE_ENDPOINT}:predict"
+        payload = {"instances": [{"content": prompt}]}
+        resp = session.post(url, json=payload, timeout=120)
+        resp.raise_for_status()
+        return resp.json()
+
+    try:
+        data = await loop.run_in_executor(None, call_generate)
+        preds = data.get('predictions') or data.get('outputs') or []
+        text_response = None
+        if isinstance(preds, list) and len(preds) > 0:
+            first = preds[0]
+            if isinstance(first, dict):
+                # check common keys
+                for k in ('content','text','output','generated_text','candidates'):
+                    if k in first:
+                        if k == 'candidates' and isinstance(first[k], list) and len(first[k])>0:
+                            cand = first[k][0]
+                            if isinstance(cand, dict):
+                                text_response = cand.get('content') or cand.get('text')
+                            else:
+                                text_response = str(cand)
+                            break
+                        else:
+                            val = first[k]
+                            if isinstance(val, str):
+                                text_response = val
+                                break
+                            elif isinstance(val, dict) and 'text' in val:
+                                text_response = val['text']
+                                break
+            elif isinstance(first, str):
+                text_response = first
+
+        if not text_response:
+            if isinstance(preds, list) and len(preds) > 0:
+                text_response = json.dumps(preds[0])
+    except Exception:
+        logging.exception('Generative model failed; returning snippets as answer')
+        return {"answer": context_text or "", "sources": snippets}
+
+    return {"answer": text_response or (context_text or ""), "sources": snippets}
 
 # --- API Endpoints ---
 
