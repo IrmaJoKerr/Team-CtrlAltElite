@@ -1,0 +1,12 @@
+{
+  "document_id": 1,
+  "original_gcs_filename": "operations/example.pdf",
+  "department_folder": "operations",
+  "final_title": "Updated SOP Title",
+  "final_department": "operations",
+  "final_process_type": "Onboarding",
+  "final_status": "Draft",
+  "review_status": "approved",
+  "last_reviewed_by": "test-user",
+  "last_reviewed_at": "2026-01-13T04:13:52.139134+00:00"
+}

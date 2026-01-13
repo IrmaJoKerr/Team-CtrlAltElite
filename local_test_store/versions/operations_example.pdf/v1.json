@@ -1,0 +1,10 @@
+{
+  "document_id": 1,
+  "original_gcs_filename": "operations/example.pdf",
+  "department_folder": "operations",
+  "final_title": "Example SOP",
+  "final_department": "operations",
+  "final_process_type": "Onboarding",
+  "final_status": "Draft",
+  "review_status": "pending"
+}

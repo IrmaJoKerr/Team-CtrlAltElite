@@ -1,0 +1,9 @@
+{
+  "document_id": 1,
+  "action": "confirm",
+  "old_value": "pending",
+  "new_value": "approved",
+  "username": "test-user",
+  "version": 2,
+  "timestamp": "2026-01-13T04:13:52.139241+00:00"
+}

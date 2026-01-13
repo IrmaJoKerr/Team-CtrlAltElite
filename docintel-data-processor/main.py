@@ -5,8 +5,11 @@ import logging
 from typing import List, Dict, Any, Optional
 import asyncio
 from concurrent.futures import ThreadPoolExecutor
+from datetime import datetime, timezone
+import uuid
 
 from fastapi import FastAPI, Request, HTTPException, Depends, Header
+from fastapi.responses import HTMLResponse
 from google.cloud import storage, pubsub_v1, secretmanager
 from vertexai.preview.generative_models import GenerativeModel, Part
 from vertexai.language_models import TextEmbeddingModel
@@ -31,6 +34,7 @@ generative_model = GenerativeModel("gemini-pro")
 PROJECT_ID = os.environ.get('PROJECT_ID', 'ctrlaltelite-484111')
 REGION = os.environ.get('REGION', 'us-central1')
 GCS_BUCKET_NAME = os.environ.get('GCS_BUCKET_NAME', 'ambuckethack')
+TEST_MODE = os.environ.get('TEST_MODE', '').lower() in ('1', 'true', 'yes')
 
 # Database Config
 DB_HOST = os.environ.get('DB_HOST')
@@ -75,6 +79,9 @@ def get_user_by_api_key(api_key: str) -> Optional[Dict[str, Any]]:
     """Look up a user by API key in the database."""
     if not api_key:
         return None
+    # TEST_MODE: return a fake user to avoid DB/SecretManager calls
+    if TEST_MODE:
+        return {"id": 1, "username": "test-user", "role": "manager", "departments": ["operations"]}
     conn = get_db_connection()
     try:
         cur = conn.cursor()
@@ -110,6 +117,57 @@ async def get_current_user(authorization: Optional[str] = Header(None)) -> Dict[
     if not user:
         raise HTTPException(status_code=401, detail="Invalid API key")
     return user
+
+def _test_metadata_path(gcs_object_path: str) -> str:
+    safe = gcs_object_path.replace('/', '__')
+    return os.path.join('local_test_store', 'documents', f"{safe}.json")
+
+def _test_version_dir(sanitized_name: str) -> str:
+    return os.path.join('local_test_store', 'versions', sanitized_name)
+
+
+def gcs_write_json(bucket_name: str, path: str, obj: Any) -> None:
+    """Write a JSON object to GCS at the given path."""
+    try:
+        bucket = storage_client.bucket(bucket_name)
+        blob = bucket.blob(path)
+        blob.upload_from_string(json.dumps(obj), content_type="application/json")
+    except Exception as e:
+        logging.error(f"Failed to write JSON to gs://{bucket_name}/{path}: {e}")
+        raise
+
+
+def local_write_json(path: str, obj: Any) -> None:
+    d = os.path.dirname(path)
+    if d and not os.path.exists(d):
+        os.makedirs(d, exist_ok=True)
+    with open(path, 'w', encoding='utf-8') as f:
+        json.dump(obj, f, ensure_ascii=False, indent=2)
+
+
+def local_read_json(path: str) -> Optional[Any]:
+    if not os.path.exists(path):
+        return None
+    with open(path, 'r', encoding='utf-8') as f:
+        return json.load(f)
+
+
+def gcs_list_versions(bucket_name: str, prefix: str) -> List[str]:
+    """List blob names under a prefix and return list of names."""
+    try:
+        bucket = storage_client.bucket(bucket_name)
+        return [b.name for b in bucket.list_blobs(prefix=prefix)]
+    except Exception as e:
+        logging.error(f"Failed to list blobs for gs://{bucket_name}/{prefix}: {e}")
+        return []
+
+
+def gcs_append_audit(bucket_name: str, base_path: str, entry: Dict[str, Any]) -> None:
+    """Append an audit entry by writing a timestamped JSON file under base_path/audit/."""
+    ts = datetime.now(timezone.utc).isoformat()
+    tid = uuid.uuid4().hex
+    path = f"{base_path}/audit/{ts}_{tid}.json"
+    gcs_write_json(bucket_name, path, entry)
 
 def extract_text_from_pdf(gcs_blob) -> str:
     """Extracts text from a PDF blob."""
@@ -388,6 +446,19 @@ async def process_document_from_pubsub(request: Request):
 @app.get("/document-metadata/{gcs_object_path:path}") # Use :path to allow slashes in path parameter
 async def get_document_metadata(gcs_object_path: str, current_user: Dict[str, Any] = Depends(get_current_user)):
     """Fetches current metadata for a document."""
+    if TEST_MODE:
+        p = _test_metadata_path(gcs_object_path)
+        data = local_read_json(p)
+        if not data:
+            raise HTTPException(status_code=404, detail="Document metadata not found (test mode).")
+        # enforce same access control shape
+        user_role = current_user.get('role')
+        user_depts = current_user.get('departments') or []
+        department_folder = data.get('department_folder')
+        if user_role != 'manager' and department_folder not in user_depts:
+            raise HTTPException(status_code=403, detail="You do not have permission to view this document.")
+        return data
+
     conn = get_db_connection()
     cursor = conn.cursor()
     cursor.execute("""
@@ -445,8 +516,19 @@ async def get_document_metadata(gcs_object_path: str, current_user: Dict[str, An
 @app.put("/document-metadata/{gcs_object_path:path}")
 async def update_document_metadata(gcs_object_path: str, metadata_update: Dict[str, str], current_user: Dict[str, Any] = Depends(get_current_user)):
     """Updates human-edited metadata fields for a document."""
-    conn = get_db_connection()
-    cursor = conn.cursor()
+    if TEST_MODE:
+        p = _test_metadata_path(gcs_object_path)
+        existing = local_read_json(p) or {}
+        document_id = existing.get('document_id', 1)
+        existing_map = {
+            'final_title': existing.get('final_title'),
+            'final_department': existing.get('final_department'),
+            'final_process_type': existing.get('final_process_type'),
+            'final_status': existing.get('final_status')
+        }
+    else:
+        conn = get_db_connection()
+        cursor = conn.cursor()
 
     update_fields = []
     update_values = []
@@ -466,21 +548,22 @@ async def update_document_metadata(gcs_object_path: str, metadata_update: Dict[s
 
     if not update_fields:
         raise HTTPException(status_code=400, detail="No valid fields provided for update.")
-    # Fetch existing values for audit logging
-    cursor.execute("SELECT id, final_title, final_department, final_process_type, final_status FROM documents WHERE gcs_object_path = %s LIMIT 1", (gcs_object_path,))
-    existing = cursor.fetchone()
-    if not existing:
-        cursor.close()
-        conn.close()
-        raise HTTPException(status_code=404, detail="Document not found.")
+    if not TEST_MODE:
+        # Fetch existing values for audit logging
+        cursor.execute("SELECT id, final_title, final_department, final_process_type, final_status FROM documents WHERE gcs_object_path = %s LIMIT 1", (gcs_object_path,))
+        existing = cursor.fetchone()
+        if not existing:
+            cursor.close()
+            conn.close()
+            raise HTTPException(status_code=404, detail="Document not found.")
 
-    document_id = existing[0]
-    existing_map = {
-        'final_title': existing[1],
-        'final_department': existing[2],
-        'final_process_type': existing[3],
-        'final_status': existing[4]
-    }
+        document_id = existing[0]
+        existing_map = {
+            'final_title': existing[1],
+            'final_department': existing[2],
+            'final_process_type': existing[3],
+            'final_status': existing[4]
+        }
 
     # Authorization: managers can edit any; officers only their departments
     user_role = current_user.get('role')
@@ -490,17 +573,45 @@ async def update_document_metadata(gcs_object_path: str, metadata_update: Dict[s
         # Determine target department if changing it, else use existing
         target_dept = metadata_update.get('final_department', doc_dept)
         if target_dept and target_dept not in user_depts:
-            cursor.close()
-            conn.close()
+            if not TEST_MODE:
+                cursor.close()
+                conn.close()
             raise HTTPException(status_code=403, detail="You do not have permission to edit this document.")
 
-    # Perform audit logging for field-level changes
+    # Perform audit logging for field-level changes — write audit files to GCS (avoid DB migrations)
     for idx, field_exp in enumerate(['final_title', 'final_department', 'final_process_type', 'final_status']):
         if field_exp in metadata_update:
             old = existing_map.get(field_exp)
             new = metadata_update[field_exp]
             if str(old) != str(new):
-                cursor.execute("INSERT INTO audit_log (document_id, field, old_value, new_value, username) VALUES (%s,%s,%s,%s,%s)", (document_id, field_exp, old, new, current_user.get('username')))
+                audit_entry = {
+                    "document_id": document_id,
+                    "field": field_exp,
+                    "old_value": old,
+                    "new_value": new,
+                    "username": current_user.get('username'),
+                    "timestamp": datetime.now(timezone.utc).isoformat(),
+                }
+                # Use a document-scoped base path in GCS for audit/version files
+                base_path = f"documents/{document_id}"
+                try:
+                    if TEST_MODE:
+                        local_path = os.path.join('local_test_store', base_path, 'audit', f"{datetime.now(timezone.utc).isoformat()}_{uuid.uuid4().hex}.json")
+                        local_write_json(local_path, audit_entry)
+                    else:
+                        gcs_append_audit(GCS_BUCKET_NAME, base_path, audit_entry)
+                except Exception:
+                    logging.exception("Failed to write audit entry to storage")
+
+    if TEST_MODE:
+        # Merge into existing and persist locally
+        merged = existing or {}
+        merged.update({k: metadata_update[k] for k in ['final_title','final_department','final_process_type','final_status'] if k in metadata_update})
+        merged['document_id'] = document_id
+        merged['department_folder'] = merged.get('final_department')
+        local_write_json(_test_metadata_path(gcs_object_path), merged)
+        logging.info(f"(test) Updated metadata for {gcs_object_path} by {current_user.get('username')}")
+        return {"message": f"(test) Metadata for {gcs_object_path} updated successfully."}
 
     update_query = f"""
         UPDATE documents
@@ -521,11 +632,69 @@ async def update_document_metadata(gcs_object_path: str, metadata_update: Dict[s
 
 @app.post("/document-metadata/{gcs_object_path:path}/confirm")
 async def confirm_document_metadata(gcs_object_path: str, current_user: Dict[str, Any] = Depends(get_current_user)):
-    """Confirms final metadata for a document, creates a version, and records approval."""
+    """Confirms final metadata for a document, creates a version (GCS-backed), and records approval."""
+    # TEST_MODE: operate on local JSON files
+    if TEST_MODE:
+        p = _test_metadata_path(gcs_object_path)
+        data = local_read_json(p)
+        if not data:
+            raise HTTPException(status_code=404, detail="Document not found (test mode).")
+
+        documents_id = data.get('document_id', 1)
+        original_name = data.get('original_gcs_filename', gcs_object_path)
+        final_department = data.get('final_department')
+
+        if not final_department:
+            raise HTTPException(status_code=400, detail="Cannot confirm: final_department is not set.")
+
+        user_role = current_user.get('role')
+        user_depts = current_user.get('departments') or []
+        if user_role != 'manager' and final_department not in user_depts:
+            raise HTTPException(status_code=403, detail="You do not have permission to confirm this document.")
+
+        sanitized_name = original_name.replace('/', '_') if original_name else f"doc_{documents_id}"
+        version_dir = _test_version_dir(sanitized_name)
+        os.makedirs(version_dir, exist_ok=True)
+        existing = sorted([n for n in os.listdir(version_dir) if n.startswith('v') and n.endswith('.json')]) if os.path.exists(version_dir) else []
+        maxv = 0
+        for n in existing:
+            try:
+                v = int(n[1:-5])
+                if v > maxv:
+                    maxv = v
+            except Exception:
+                continue
+        next_version = maxv + 1
+        version_path = os.path.join(version_dir, f"v{next_version}.json")
+        local_write_json(version_path, data)
+
+        # mark approved in local doc
+        data['review_status'] = 'approved'
+        data['last_reviewed_by'] = current_user.get('username')
+        data['last_reviewed_at'] = datetime.now(timezone.utc).isoformat()
+        local_write_json(p, data)
+
+        # write audit
+        audit_entry = {
+            "document_id": documents_id,
+            "action": "confirm",
+            "old_value": "pending",
+            "new_value": "approved",
+            "username": current_user.get('username'),
+            "version": next_version,
+            "timestamp": datetime.now(timezone.utc).isoformat(),
+        }
+        audit_path = os.path.join('local_test_store', 'versions', sanitized_name, 'audit')
+        os.makedirs(audit_path, exist_ok=True)
+        local_write_json(os.path.join(audit_path, f"{datetime.now(timezone.utc).isoformat()}_{uuid.uuid4().hex}.json"), audit_entry)
+
+        logging.info(f"(test) Confirmed metadata for {gcs_object_path} by {current_user.get('username')}")
+        return {"message": f"(test) Document {gcs_object_path} metadata confirmed and approved.", "version": next_version}
+
+    # Normal mode: write version JSON to GCS and update documents.review_status
     conn = get_db_connection()
     cursor = conn.cursor()
 
-    # Fetch document and ensure it exists
     cursor.execute("SELECT id, original_gcs_filename, final_department FROM documents WHERE gcs_object_path = %s LIMIT 1", (gcs_object_path,))
     row = cursor.fetchone()
     if not row:
@@ -540,7 +709,6 @@ async def confirm_document_metadata(gcs_object_path: str, current_user: Dict[str
         conn.close()
         raise HTTPException(status_code=400, detail="Cannot confirm: final_department is not set.")
 
-    # Authorization: managers can confirm any; officers only their departments
     user_role = current_user.get('role')
     user_depts = current_user.get('departments') or []
     if user_role != 'manager' and final_department not in user_depts:
@@ -548,16 +716,7 @@ async def confirm_document_metadata(gcs_object_path: str, current_user: Dict[str
         conn.close()
         raise HTTPException(status_code=403, detail="You do not have permission to confirm this document.")
 
-    # Ensure sop_documents exists (document-level registry)
-    cursor.execute("SELECT id FROM sop_documents WHERE original_gcs_filename = %s LIMIT 1", (original_name,))
-    sop_row = cursor.fetchone()
-    if sop_row:
-        sop_doc_id = sop_row[0]
-    else:
-        cursor.execute("INSERT INTO sop_documents (original_gcs_filename) VALUES (%s) RETURNING id", (original_name,))
-        sop_doc_id = cursor.fetchone()[0]
-
-    # Build payload from current document row
+    # Build payload
     cursor.execute(
         """
         SELECT row_to_json(t) FROM (
@@ -573,19 +732,48 @@ async def confirm_document_metadata(gcs_object_path: str, current_user: Dict[str
     payload_row = cursor.fetchone()
     payload = payload_row[0] if payload_row else None
 
-    # Determine next version
-    cursor.execute("SELECT COALESCE(MAX(version),0) FROM sop_versions WHERE document_id = %s", (sop_doc_id,))
-    maxv = cursor.fetchone()[0]
+    # Write version to GCS
+    sanitized_name = original_name.replace('/', '_') if original_name else f"doc_{documents_id}"
+    base_path = f"versions/{sanitized_name}"
+    prefix = f"{base_path}/"
+    existing = gcs_list_versions(GCS_BUCKET_NAME, prefix)
+    maxv = 0
+    for name in existing:
+        bn = name.split('/')[-1]
+        if bn.startswith('v') and bn.endswith('.json'):
+            try:
+                v = int(bn[1:-5])
+                if v > maxv:
+                    maxv = v
+            except Exception:
+                continue
     next_version = maxv + 1
-
-    # Insert version
-    cursor.execute("INSERT INTO sop_versions (document_id, version, payload, created_by) VALUES (%s,%s,%s,%s)", (sop_doc_id, next_version, json.dumps(payload), current_user.get('username')))
+    version_path = f"{prefix}v{next_version}.json"
+    try:
+        gcs_write_json(GCS_BUCKET_NAME, version_path, payload)
+    except Exception as e:
+        cursor.close()
+        conn.close()
+        logging.error(f"Failed to write version to GCS: {e}")
+        raise HTTPException(status_code=500, detail="Failed to persist version to GCS")
 
     # Update documents as approved
     cursor.execute("UPDATE documents SET review_status = 'approved', last_reviewed_by = %s, last_reviewed_at = NOW(), updated_at = NOW() WHERE gcs_object_path = %s", (current_user.get('username'), gcs_object_path))
 
-    # Audit the approval
-    cursor.execute("INSERT INTO audit_log (document_id, field, old_value, new_value, username) VALUES (%s,%s,%s,%s,%s)", (documents_id, 'review_status', 'pending', 'approved', current_user.get('username')))
+    # Write audit entry to GCS
+    audit_entry = {
+        "document_id": documents_id,
+        "action": "confirm",
+        "old_value": "pending",
+        "new_value": "approved",
+        "username": current_user.get('username'),
+        "version": next_version,
+        "timestamp": datetime.now(timezone.utc).isoformat(),
+    }
+    try:
+        gcs_append_audit(GCS_BUCKET_NAME, base_path, audit_entry)
+    except Exception:
+        logging.exception("Failed to write approval audit to GCS")
 
     conn.commit()
     cursor.close()
@@ -597,21 +785,28 @@ async def confirm_document_metadata(gcs_object_path: str, current_user: Dict[str
 
 @app.delete("/document-metadata/{gcs_object_path:path}/discard")
 async def discard_document(gcs_object_path: str, current_user: Dict[str, Any] = Depends(get_current_user)):
-    """Discards a document, deleting from GCS and database."""
+    """Discards a document, deleting from GCS and database (or local test store)."""
     try:
-        # Delete from GCS
-        bucket = storage_client.bucket(GCS_BUCKET_NAME)
-        blob = bucket.blob(gcs_object_path)
-        if blob.exists():
-            blob.delete()
-            logging.info(f"Deleted {gcs_object_path} from GCS.")
+        # Delete from GCS or local store
+        if TEST_MODE:
+            p = _test_metadata_path(gcs_object_path)
+            if os.path.exists(p):
+                os.remove(p)
+                logging.info(f"(test) Deleted local metadata {p}.")
+            else:
+                logging.warning(f"(test) File {p} not found in local store for deletion.")
         else:
-            logging.warning(f"File {gcs_object_path} not found in GCS for deletion.")
+            bucket = storage_client.bucket(GCS_BUCKET_NAME)
+            blob = bucket.blob(gcs_object_path)
+            if blob.exists():
+                blob.delete()
+                logging.info(f"Deleted {gcs_object_path} from GCS.")
+            else:
+                logging.warning(f"File {gcs_object_path} not found in GCS for deletion.")
 
         # Delete from Database
         conn = get_db_connection()
         cursor = conn.cursor()
-        # check permission: find department_folder
         cursor.execute("SELECT id, department_folder FROM documents WHERE gcs_object_path = %s LIMIT 1", (gcs_object_path,))
         doc = cursor.fetchone()
         if not doc:
@@ -647,3 +842,86 @@ async def discard_document(gcs_object_path: str, current_user: Dict[str, Any] = 
 @app.get("/")
 def health_check():
     return {"status": "ok", "service": "docintel-data-processor"}
+
+
+@app.get('/confirm-ui', response_class=HTMLResponse)
+def confirm_ui():
+        html = """
+        <!doctype html>
+        <html>
+        <head>
+            <meta charset="utf-8" />
+            <title>Confirm Document Metadata</title>
+            <style>body{font-family:Arial,Helvetica,sans-serif;max-width:900px;margin:20px}label{display:block;margin-top:8px}input[type=text],textarea{width:100%;padding:6px}</style>
+        </head>
+        <body>
+            <h2>Human Confirmation UI</h2>
+            <p>Enter your API key and the document GCS path (e.g. department/file.pdf) to fetch and confirm metadata.</p>
+            <label>API Key: <input id="apiKey" type="text" placeholder="Bearer &lt;api_key&gt; or api_key"/></label>
+            <label>GCS Object Path: <input id="gcsPath" type="text" placeholder="e.g. operations/sop-1.pdf"/></label>
+            <button id="btnFetch">Fetch Metadata</button>
+            <div id="meta" style="margin-top:12px;display:none">
+                <h3>Metadata</h3>
+                <label>Final Title: <input id="final_title" type="text"/></label>
+                <label>Final Department: <input id="final_department" type="text"/></label>
+                <label>Final Process Type: <input id="final_process_type" type="text"/></label>
+                <label>Final Status: <input id="final_status" type="text"/></label>
+                <div style="margin-top:8px">
+                    <button id="btnSave">Save</button>
+                    <button id="btnConfirm">Confirm</button>
+                </div>
+            </div>
+            <pre id="log" style="background:#f6f6f6;padding:8px;margin-top:12px;white-space:pre-wrap;"></pre>
+
+            <script>
+            const log = (s)=>{document.getElementById('log').textContent = s}
+            document.getElementById('btnFetch').onclick = async ()=>{
+                const apiKey = document.getElementById('apiKey').value
+                const path = document.getElementById('gcsPath').value
+                if(!path){log('Enter path');return}
+                log('Fetching...')
+                try{
+                    const res = await fetch('/document-metadata/'+encodeURIComponent(path),{headers:{'Authorization':apiKey}})
+                    if(!res.ok){log('Fetch failed: '+res.status+' '+await res.text());return}
+                    const data = await res.json()
+                    document.getElementById('meta').style.display='block'
+                    document.getElementById('final_title').value = data.final_title || ''
+                    document.getElementById('final_department').value = data.final_department || ''
+                    document.getElementById('final_process_type').value = data.final_process_type || ''
+                    document.getElementById('final_status').value = data.final_status || ''
+                    log('Loaded metadata for '+path)
+                }catch(e){log('Error: '+e)}
+            }
+
+            document.getElementById('btnSave').onclick = async ()=>{
+                const apiKey = document.getElementById('apiKey').value
+                const path = document.getElementById('gcsPath').value
+                const payload = {
+                    final_title: document.getElementById('final_title').value,
+                    final_department: document.getElementById('final_department').value,
+                    final_process_type: document.getElementById('final_process_type').value,
+                    final_status: document.getElementById('final_status').value
+                }
+                log('Saving...')
+                try{
+                    const res = await fetch('/document-metadata/'+encodeURIComponent(path),{method:'PUT',headers:{'Content-Type':'application/json','Authorization':apiKey},body:JSON.stringify(payload)})
+                    const t = await res.json()
+                    if(!res.ok) log('Save failed: '+res.status+' '+JSON.stringify(t)); else log('Saved: '+JSON.stringify(t))
+                }catch(e){log('Error: '+e)}
+            }
+
+            document.getElementById('btnConfirm').onclick = async ()=>{
+                const apiKey = document.getElementById('apiKey').value
+                const path = document.getElementById('gcsPath').value
+                log('Confirming...')
+                try{
+                    const res = await fetch('/document-metadata/'+encodeURIComponent(path)+'/confirm',{method:'POST',headers:{'Authorization':apiKey}})
+                    const t = await res.json()
+                    if(!res.ok) log('Confirm failed: '+res.status+' '+JSON.stringify(t)); else log('Confirmed: '+JSON.stringify(t))
+                }catch(e){log('Error: '+e)}
+            }
+            </script>
+        </body>
+        </html>
+        """
+        return HTMLResponse(content=html)
