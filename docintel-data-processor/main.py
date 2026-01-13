@@ -808,6 +808,142 @@ class RagQueryResponse(BaseModel):
     confidence: ConfidenceReport
     query_audit: QueryAuditInfo
     disclaimer: str = "This response is advisory only. All outputs are traceable and may be audited."
+    similar_precedents: Optional['PrecedentResponse'] = None
+
+
+# --- Pydantic Models for Historical Precedents ---
+
+class PrecedentCase(BaseModel):
+    """Single historical precedent case."""
+    override_id: str
+    user_id: str
+    user_department: str
+    original_recommendation: Optional[str] = None
+    scenario: Optional[str] = None  # Derived summary of override_reason
+    override_reason: str
+    how_resolved: str  # resolution_notes from DB
+    similarity_score: float = Field(ge=0.0, le=1.0)
+    resolved_date: Optional[str] = None
+    resolved_by: Optional[str] = None
+
+
+class PrecedentResponse(BaseModel):
+    """Precedent system section of /rag-query-v2 response."""
+    disclaimer: str = (
+        "⚠️ IMPORTANT: These are examples of how colleagues handled similar situations. "
+        "They are NOT management-approved policies or procedures. Use as guidance only. "
+        "Your decision remains your responsibility. For formal guidance, contact your manager or Compliance."
+    )
+    precedent_count: int = 0
+    show_precedents: bool = False  # True only if >= 2 similar cases found
+    cases: List[PrecedentCase] = []
+
+
+# Forward reference resolution for RagQueryResponse.similar_precedents
+RagQueryResponse.model_rebuild()
+
+
+# --- Historical Precedent System ---
+
+async def get_precedents(
+    override_reason: str,
+    current_query_id: uuid.UUID,
+    similarity_threshold: float = 0.70,
+    limit_count: int = 5,
+    min_precedents: int = 2
+) -> List[Dict[str, Any]]:
+    """
+    Retrieve similar resolved precedents using fuzzy matching (pg_trgm).
+    
+    Args:
+        override_reason: The current override reason to match against historical cases
+        current_query_id: UUID of current query (to avoid self-matches)
+        similarity_threshold: Minimum similarity score (0.0-1.0); default 0.70 (70%)
+        limit_count: Max precedents to return; default 5
+        min_precedents: Minimum threshold to show precedents; default 2
+    
+    Returns:
+        List of precedent cases, each with:
+        - override_id, user_id, user_department, original_recommendation, override_reason
+        - resolution_notes, resolved_by_user_id, resolution_date, created_at, match_score
+        
+        Returns empty list if:
+        - override_reason is null/empty
+        - fewer than min_precedents found
+        - database error occurs (logged with warning)
+    """
+    # Safety: null/empty input
+    if not override_reason or not override_reason.strip():
+        logging.debug("get_precedents called with empty override_reason; returning empty")
+        return []
+    
+    conn = None
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        
+        # Call stored function: get_similar_precedents(reason, query_id, threshold, limit)
+        # This function uses pg_trgm similarity() for fuzzy text matching
+        cursor.execute("""
+            SELECT 
+                override_id, 
+                user_id, 
+                user_department, 
+                original_recommendation, 
+                override_reason, 
+                resolution_notes, 
+                resolved_by_user_id, 
+                resolution_date, 
+                created_at, 
+                match_score, 
+                precedent_rank
+            FROM get_similar_precedents(%s, %s, %s, %s, %s)
+            ORDER BY match_score DESC, resolution_date DESC
+        """, (override_reason, str(current_query_id), similarity_threshold, limit_count, min_precedents))
+        
+        rows = cursor.fetchall()
+        cursor.close()
+        
+        # Convert rows to list of dicts
+        if not rows:
+            logging.debug(f"No precedents found for: {override_reason[:50]}...")
+            return []
+        
+        precedents = []
+        for row in rows:
+            precedent = {
+                "override_id": str(row[0]),
+                "user_id": row[1],
+                "user_department": row[2],
+                "original_recommendation": row[3],
+                "override_reason": row[4],
+                "resolution_notes": row[5],
+                "resolved_by_user_id": row[6],
+                "resolution_date": row[7].isoformat() if row[7] else None,
+                "created_at": row[8].isoformat() if row[8] else None,
+                "match_score": float(row[9]),
+                "precedent_rank": row[10]
+            }
+            precedents.append(precedent)
+        
+        # Only return if we have at least min_precedents
+        if len(precedents) < min_precedents:
+            logging.debug(f"Found {len(precedents)} precedents, but minimum is {min_precedents}; returning empty")
+            return []
+        
+        logging.info(f"Found {len(precedents)} precedents for override (avg match: {sum(p['match_score'] for p in precedents) / len(precedents):.2f})")
+        return precedents
+        
+    except Exception as e:
+        logging.exception(f"Error retrieving precedents for '{override_reason[:50]}...': {e}")
+        # Graceful degradation: return empty list on error
+        return []
+    finally:
+        if conn:
+            try:
+                conn.close()
+            except Exception:
+                pass
 
 
 # --- Helper Functions for Structured RAG ---
@@ -1397,7 +1533,52 @@ Provide a direct, procedural answer based ONLY on the above content. If steps ex
     except Exception:
         logging.exception("Failed to log query session - continuing without audit")
     
-    # 10. Return structured response
+    # 10. Retrieve similar precedents (if any exist)
+    # Precedents are shown only if there are at least 2 similar resolved cases
+    precedent_response = PrecedentResponse()  # Default empty response
+    try:
+        # For now, only retrieve precedents if we have low confidence (< 0.6)
+        # This helps frontline staff understand how others handled similar grey-zone scenarios
+        if confidence.get('overall_score', 0.0) < 0.6 and summary_answer:
+            # Use the summary answer as the search basis for similar overrides
+            # (In practice, this would be called after user explicitly rejects answer)
+            precedent_list = await get_precedents(
+                override_reason=body.query[:200],  # Query as potential override reason
+                current_query_id=uuid.UUID(session_id),
+                similarity_threshold=0.70,
+                limit_count=5,
+                min_precedents=2
+            )
+            
+            if precedent_list and len(precedent_list) >= 2:
+                # Build PrecedentCase objects
+                precedent_cases = []
+                for p in precedent_list:
+                    case = PrecedentCase(
+                        override_id=p['override_id'],
+                        user_id=p['user_id'],
+                        user_department=p['user_department'],
+                        original_recommendation=p.get('original_recommendation'),
+                        scenario=p['override_reason'][:100],  # First 100 chars as scenario summary
+                        override_reason=p['override_reason'],
+                        how_resolved=p['resolution_notes'] or 'No notes available',
+                        similarity_score=round(p['match_score'], 3),
+                        resolved_date=p['resolution_date'],
+                        resolved_by=p['resolved_by_user_id']
+                    )
+                    precedent_cases.append(case)
+                
+                precedent_response = PrecedentResponse(
+                    precedent_count=len(precedent_cases),
+                    show_precedents=True,
+                    cases=precedent_cases
+                )
+                logging.info(f"Retrieved {len(precedent_cases)} precedent cases for low-confidence query")
+    except Exception:
+        logging.exception("Failed to retrieve precedents - continuing without them")
+        precedent_response = PrecedentResponse()  # Return empty on error
+    
+    # 11. Return structured response
     return RagQueryResponse(
         session_id=session_id,
         query=body.query,
@@ -1406,8 +1587,44 @@ Provide a direct, procedural answer based ONLY on the above content. If steps ex
         sources=[SourceCitation(**s) for s in sources],
         confidence=ConfidenceReport(**confidence),
         query_audit=audit_info,
-        disclaimer="This response is advisory only. All outputs are traceable and may be audited."
+        disclaimer="This response is advisory only. All outputs are traceable and may be audited.",
+        similar_precedents=precedent_response
+
     )
+
+
+# --- Manager Workflow Models ---
+
+class ResolveOverrideRequest(BaseModel):
+    """Request to mark an override as resolved (manager approval)."""
+    resolution_notes: str = Field(..., min_length=10, max_length=1000, description="How was this override resolved? Decision rationale.")
+    
+
+class ResolveOverrideResponse(BaseModel):
+    """Response after manager resolves an override."""
+    override_id: str
+    is_resolved: bool
+    resolution_date: str
+    resolved_by: str
+    message: str
+
+
+class PrecedentDetailsResponse(BaseModel):
+    """Full details of a precedent case for manager/compliance review."""
+    override_id: str
+    user_id: str
+    user_department: str
+    original_query_context: Optional[str] = None
+    original_recommendation: Optional[str] = None
+    override_reason: str
+    how_resolved: str  # resolution_notes
+    resolved_date: Optional[str] = None
+    resolved_by_user_id: Optional[str] = None
+    created_at: str
+    match_score: Optional[float] = None
+    # Optional: full query context
+    query_session_id: Optional[str] = None
+    query_text: Optional[str] = None
 
 
 # --- Upload Models & Endpoints ---
@@ -1907,6 +2124,182 @@ async def discard_upload(session_id: str, current_user: Dict[str, Any] = Depends
     await _log_upload_event(session_id, current_user.get('id'), 'discarded', event_details={'gcs_path': gcs_path})
     
     return DiscardResponse(session_id=session_id, status='discarded', message='Upload and all data permanently deleted')
+
+
+# --- Manager Workflow Endpoints ---
+
+@app.post('/override/{override_id}/resolve', response_model=ResolveOverrideResponse)
+async def resolve_override(
+    override_id: str,
+    body: ResolveOverrideRequest,
+    current_user: Dict[str, Any] = Depends(get_current_user)
+):
+    """
+    Manager endpoint: Mark an override as formally resolved and create a precedent case.
+    
+    This converts an open override into a historical precedent that can guide other staff.
+    Only managers/compliance can approve resolutions.
+    
+    Args:
+        override_id: UUID of the override_log entry
+        body.resolution_notes: How was this override resolved? (min 10 chars)
+    
+    Returns:
+        Confirmation with resolution date and manager ID
+    """
+    # RBAC: Only manager or compliance role
+    user_role = current_user.get('role', '').lower()
+    if user_role not in ['manager', 'compliance']:
+        raise HTTPException(
+            status_code=403,
+            detail=f"Only managers/compliance can resolve overrides. Your role: {user_role}"
+        )
+    
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    
+    try:
+        # Verify override exists
+        cursor.execute("""
+            SELECT override_id, user_id, is_resolved FROM override_log WHERE override_id = %s
+        """, (override_id,))
+        
+        row = cursor.fetchone()
+        if not row:
+            raise HTTPException(status_code=404, detail=f"Override {override_id} not found")
+        
+        override_uuid, override_user_id, is_already_resolved = row
+        
+        if is_already_resolved:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Override {override_id} is already resolved"
+            )
+        
+        # Mark as resolved using stored function
+        cursor.execute("""
+            SELECT mark_override_resolved(%s, %s, %s);
+        """, (override_id, body.resolution_notes, current_user.get('id')))
+        
+        result = cursor.fetchone()
+        conn.commit()
+        
+        if not result or not result[0]:
+            raise HTTPException(status_code=500, detail="Failed to update override")
+        
+        # Retrieve updated override for response
+        cursor.execute("""
+            SELECT override_id, resolution_date, resolved_by_user_id FROM override_log WHERE override_id = %s
+        """, (override_id,))
+        
+        updated_row = cursor.fetchone()
+        if not updated_row:
+            raise HTTPException(status_code=500, detail="Override not found after update")
+        
+        upd_id, res_date, res_by = updated_row
+        
+        logging.info(f"Override {override_id} marked as resolved by {current_user.get('username', 'unknown')}")
+        
+        return ResolveOverrideResponse(
+            override_id=str(upd_id),
+            is_resolved=True,
+            resolution_date=res_date.isoformat() if res_date else '',
+            resolved_by=res_by or '',
+            message=f"Override resolved successfully. This case is now available as a precedent for other staff."
+        )
+    
+    except HTTPException:
+        raise
+    except Exception as e:
+        conn.rollback()
+        logging.exception(f"Failed to resolve override {override_id}")
+        raise HTTPException(status_code=500, detail=f"Failed to resolve override: {str(e)[:100]}")
+    finally:
+        cursor.close()
+        conn.close()
+
+
+@app.get('/precedent-details/{override_id}', response_model=PrecedentDetailsResponse)
+async def get_precedent_details(
+    override_id: str,
+    current_user: Dict[str, Any] = Depends(get_current_user)
+):
+    """
+    Retrieve full details of a precedent case for manager/compliance review.
+    
+    Shows the complete audit trail: original query, user override, resolution notes.
+    
+    Args:
+        override_id: UUID of the override_log entry (must be marked as resolved)
+    
+    Returns:
+        Full precedent case details with query context
+    """
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    
+    try:
+        # Get override details
+        cursor.execute("""
+            SELECT 
+                override_id,
+                user_id,
+                user_department,
+                original_recommendation,
+                override_reason,
+                resolution_notes,
+                resolved_by_user_id,
+                resolution_date,
+                created_at,
+                query_id
+            FROM override_log
+            WHERE override_id = %s AND is_resolved = TRUE
+        """, (override_id,))
+        
+        row = cursor.fetchone()
+        if not row:
+            raise HTTPException(
+                status_code=404,
+                detail=f"Precedent case {override_id} not found or not yet resolved"
+            )
+        
+        o_id, u_id, u_dept, orig_rec, override_reason, res_notes, res_by, res_date, created, q_id = row
+        
+        # Optionally retrieve query context (if query_sessions table exists)
+        query_text = None
+        if q_id:
+            try:
+                cursor.execute("""
+                    SELECT query_text FROM query_sessions WHERE session_id = %s LIMIT 1
+                """, (str(q_id),))
+                q_row = cursor.fetchone()
+                if q_row:
+                    query_text = q_row[0]
+            except Exception:
+                pass  # Query context optional
+        
+        return PrecedentDetailsResponse(
+            override_id=str(o_id),
+            user_id=u_id,
+            user_department=u_dept,
+            original_recommendation=orig_rec,
+            override_reason=override_reason,
+            how_resolved=res_notes or 'No resolution notes',
+            resolved_date=res_date.isoformat() if res_date else None,
+            resolved_by_user_id=res_by,
+            created_at=created.isoformat() if created else '',
+            query_session_id=str(q_id) if q_id else None,
+            query_text=query_text
+        )
+    
+    except HTTPException:
+        raise
+    except Exception as e:
+        logging.exception(f"Failed to retrieve precedent details for {override_id}")
+        raise HTTPException(status_code=500, detail=f"Failed to retrieve precedent: {str(e)[:100]}")
+    finally:
+        cursor.close()
+        conn.close()
 
 
 # --- API Endpoints ---
