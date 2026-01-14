@@ -994,6 +994,7 @@
 
 					<div style="display: flex; gap: 10px;">
 						<button class="button button-primary" id="uploadBtn">Send</button>
+						<button class="button button-secondary" id="resetBtn">Reset Form</button>
 					</div>
 				</div>
 
@@ -1567,15 +1568,17 @@ Success rate: 82% with this approach.</textarea>
 						}, 10000); // Poll every 10 seconds
 					}
 
-					elements.resetBtn.addEventListener('click', () => {
-						elements.fileInput.value = '';
-						elements.fileInfo.style.display = 'none';
-						elements.docTitle.value = '';
-						elements.docDepartment.value = '';
-						elements.docAuthor.value = currentUsername; // Preserve username
-						elements.docType.value = '';
-						elements.docNotes.value = '';
-					});
+					if (elements.resetBtn) {
+						elements.resetBtn.addEventListener('click', () => {
+							elements.fileInput.value = '';
+							elements.fileInfo.style.display = 'none';
+							elements.docTitle.value = '';
+							elements.docDepartment.value = '';
+							elements.docAuthor.value = currentUsername; // Preserve username
+							elements.docType.value = '';
+							elements.docNotes.value = '';
+						});
+					}
 
 					// Query Section - Chat Interface
 					elements.submitQueryBtn.addEventListener('click', submitQuery);
@@ -1584,6 +1587,8 @@ Success rate: 82% with this approach.</textarea>
 					});
 
 					function addChatMessage(text, isUser) {
+						console.log('addChatMessage called:', text, 'isUser:', isUser);
+						console.log('elements.chatMessages:', elements.chatMessages);
 						const messageDiv = document.createElement('div');
 						messageDiv.className = `chat-message ${isUser ? 'user' : 'ai'}`;
 
@@ -1598,19 +1603,25 @@ Success rate: 82% with this approach.</textarea>
 						messageDiv.appendChild(avatar);
 						messageDiv.appendChild(bubble);
 
+						console.log('Appending messageDiv to chatMessages');
 						elements.chatMessages.appendChild(messageDiv);
+						console.log('Appended successfully');
 
 						// Auto-scroll to bottom
 						elements.chatMessages.scrollTop = elements.chatMessages.scrollHeight;
 					}
 
 					async function submitQuery() {
+						console.log('submitQuery called');
 						const query = elements.queryInput.value.trim();
+						console.log('Query value:', query);
 						if (!query) {
+							console.log('Empty query, returning');
 							return; // Empty queries do nothing
 						}
 
 						// Add user message to conversation
+						console.log('Adding user message to chat');
 						addChatMessage(query, true);
 						conversationHistory.push({ role: 'user', content: query });
 
@@ -1621,48 +1632,59 @@ Success rate: 82% with this approach.</textarea>
 						elements.submitQueryBtn.innerHTML = '<span class="loading"></span> Processing...';
 
 						try {
-							// Mock response for demo
-							await new Promise(resolve => setTimeout(resolve, 1500));
+							// Call the simple chat endpoint (uses text search + Gemini)
+							console.log('Making API call to:', `${API_BASE}/chat`);
+							const response = await fetch(`${API_BASE}/chat`, {
+								method: 'POST',
+								headers: {
+									'Content-Type': 'application/json',
+									'Authorization': `Bearer ${authToken}`
+								},
+								body: JSON.stringify({
+									query: query,
+									conversation_history: conversationHistory.slice(-6) // Send last 6 messages for context
+								})
+							});
 
-							const mockResponse = {
-								solution: `Based on existing SOPs and similar historical cases, here's the recommended approach:\n\n1. Assessment: Evaluate employment history, income stability, and credit profile\n2. Documentation: Request 12 months of income verification\n3. Enhanced Review: Conduct extended underwriting for non-standard profiles\n4. Risk Mitigation: Consider co-signer or higher interest rate if needed\n5. Decision: Approve with conditions or deny based on findings\n\nThis approach has a 78% approval rate for similar cases.`,
-								confidence: 0.52,
-								show_precedents: true,
-								cases: [
-									{
-										id: 'OV-2026-001',
-										department: 'Loans',
-										scenario: 'Customer with 6 months employment but strong savings',
-										resolution: 'Approved with co-signer requirement',
-										resolved_by: 'Sarah Johnson',
-										created_at: '2026-01-12',
-										match_score: 0.85
-									},
-									{
-										id: 'OV-2026-002',
-										department: 'Loans',
-										scenario: 'Self-employed with variable income but good credit',
-										resolution: 'Approved with extended documentation review',
-										resolved_by: 'Mark Chen',
-										created_at: '2026-01-13',
-										match_score: 0.79
-									}
-								]
+							if (!response.ok) {
+								const errorData = await response.json().catch(() => ({}));
+								throw new Error(errorData.detail || `Server error: ${response.status}`);
+							}
+
+							const data = await response.json();
+							console.log('API response:', data);
+
+							// Get the response text
+							const answerText = data.response || 'No response available.';
+							console.log('Answer text:', answerText);
+
+							currentQueryResult = {
+								solution: answerText,
+								confidence: data.confidence || 0.5,
+								show_precedents: data.sources && data.sources.length > 0,
+								cases: data.sources ? data.sources.map(src => ({
+									id: src.path || 'unknown',
+									department: src.department || 'General',
+									scenario: src.title || 'Related document',
+									resolution: 'See document for details',
+									resolved_by: 'SOP Document',
+									created_at: new Date().toISOString().split('T')[0],
+									match_score: data.confidence || 0.5
+								})) : []
 							};
-
-							currentQueryResult = mockResponse;
 							currentQuery = query;
 
 							// Add AI response to chat
-							addChatMessage(mockResponse.solution, false);
-							conversationHistory.push({ role: 'assistant', content: mockResponse.solution });
+							addChatMessage(answerText, false);
+							conversationHistory.push({ role: 'assistant', content: answerText });
 
-							// Enable Similar Cases button ONLY if confidence is low (< 0.6)
-							elements.viewSimilarBtn.disabled = !(mockResponse.confidence < 0.6 && mockResponse.cases && mockResponse.cases.length > 0);
+							// Enable Similar Cases button if sources exist
+							elements.viewSimilarBtn.disabled = !(currentQueryResult.cases && currentQueryResult.cases.length > 0);
 
 							showStatus('queryStatus', 'Query processed successfully', 'success');
 						} catch (error) {
-							addChatMessage(`Error: ${error.message}`, false);
+							console.error('Query error:', error);
+							addChatMessage(`Sorry, I encountered an error: ${error.message}. Please try again.`, false);
 							showStatus('queryStatus', `Error: ${error.message}`, 'error');
 						} finally {
 							elements.submitQueryBtn.disabled = false;

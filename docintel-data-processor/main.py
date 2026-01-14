@@ -39,6 +39,7 @@ import uuid
 
 from fastapi import FastAPI, Request, HTTPException, Depends, Header
 from fastapi.responses import HTMLResponse
+from fastapi.middleware.cors import CORSMiddleware
 from google.cloud import storage, pubsub_v1
 from google.oauth2 import service_account
 from google.auth.transport.requests import AuthorizedSession
@@ -50,6 +51,15 @@ from pypdf import PdfReader # For PDF parsing
 # --- Configuration and Initialization ---
 logging.basicConfig(level=logging.INFO)
 app = FastAPI()
+
+# Add CORS middleware
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 # GCP Clients
 storage_client = storage.Client()
@@ -1436,6 +1446,108 @@ Provide a direct, procedural answer based ONLY on the above content."""
         contexts=contexts,
         confidence=confidence
     )
+
+
+# Simple chat endpoint that uses text search (no embeddings required)
+@app.post('/chat')
+async def chat_query(body: Dict[str, Any], current_user: Dict[str, Any] = Depends(get_current_user)):
+    """
+    Simple chat endpoint that uses text search and Gemini for responses.
+    Falls back gracefully when embeddings aren't available.
+    
+    Body: {"query": str, "conversation_history": list (optional)}
+    Returns: {"response": str, "sources": list, "confidence": float}
+    """
+    query = body.get('query', '').strip()
+    if not query:
+        raise HTTPException(status_code=400, detail="Missing 'query' in request body")
+    
+    conversation_history = body.get('conversation_history', [])
+    
+    # 1. Text search in documents table
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    snippets = []
+    
+    try:
+        # Use text search with multiple keywords
+        keywords = query.lower().split()[:5]  # Take first 5 words
+        
+        # Build search condition
+        search_conditions = " OR ".join(["chunk_content ILIKE %s" for _ in keywords])
+        search_params = [f"%{kw}%" for kw in keywords]
+        
+        sql = f"""
+            SELECT chunk_content, gcs_object_path, final_title, department_folder
+            FROM documents 
+            WHERE {search_conditions}
+            LIMIT 5
+        """
+        cursor.execute(sql, tuple(search_params))
+        rows = cursor.fetchall()
+        
+        for row in rows:
+            snippets.append({
+                'content': row[0][:500] if row[0] else '',  # Limit snippet size
+                'path': row[1] or '',
+                'title': row[2] or 'Unknown Document',
+                'department': row[3] or 'General'
+            })
+    except Exception as e:
+        logging.warning(f"Text search failed: {e}")
+        # Continue without snippets
+    finally:
+        cursor.close()
+        conn.close()
+    
+    # 2. Build context from snippets
+    context_text = ""
+    if snippets:
+        context_text = "\n\n".join([f"[{s['title']}]: {s['content']}" for s in snippets])
+    
+    # 3. Generate response using Gemini
+    try:
+        # Build conversation context
+        conv_context = ""
+        if conversation_history:
+            for msg in conversation_history[-4:]:  # Last 4 messages
+                role = "User" if msg.get('role') == 'user' else "Assistant"
+                conv_context += f"{role}: {msg.get('content', '')}\n"
+        
+        prompt = f"""You are a helpful banking SOP assistant. Answer the user's question based on the provided context from bank SOPs and procedures.
+
+Context from SOPs:
+{context_text if context_text else "No specific SOP documents found for this query."}
+
+Previous conversation:
+{conv_context if conv_context else "No previous conversation."}
+
+Current question: {query}
+
+Provide a helpful, professional response. If you don't have specific information from the SOPs, provide general banking guidance but note that the user should verify with their specific bank's procedures."""
+
+        # Use the generate_with_retry function
+        response_text = await generate_with_retry(prompt)
+        
+        if not response_text:
+            response_text = "I apologize, but I'm unable to generate a response at this time. Please try again or contact support for assistance."
+        
+    except Exception as e:
+        logging.exception(f"Gemini generation failed: {e}")
+        # Provide fallback response
+        if snippets:
+            response_text = f"Based on the available SOPs, here's what I found:\n\n"
+            for s in snippets[:3]:
+                response_text += f"• From {s['title']}: {s['content'][:200]}...\n\n"
+            response_text += "Please review the full SOP documents for complete procedures."
+        else:
+            response_text = "I wasn't able to find specific SOP information for your query. Please try rephrasing your question or contact your manager for guidance on banking procedures."
+    
+    return {
+        "response": response_text,
+        "sources": [{"title": s['title'], "department": s['department'], "path": s['path']} for s in snippets],
+        "confidence": 0.7 if snippets else 0.3
+    }
 
 
 @app.post('/rag-query-v2', response_model=RagQueryResponse)
