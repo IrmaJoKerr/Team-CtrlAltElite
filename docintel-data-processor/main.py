@@ -39,7 +39,7 @@ import uuid
 
 from fastapi import FastAPI, Request, HTTPException, Depends, Header
 from fastapi.responses import HTMLResponse
-from google.cloud import storage, pubsub_v1, secretmanager
+from google.cloud import storage, pubsub_v1
 from google.oauth2 import service_account
 from google.auth.transport.requests import AuthorizedSession
 import google.auth
@@ -53,7 +53,6 @@ app = FastAPI()
 
 # GCP Clients
 storage_client = storage.Client()
-secret_client = secretmanager.SecretManagerServiceClient()
 pubsub_publisher = pubsub_v1.PublisherClient() # For status updates or next steps
 
 # Vertex/Endpoint config (use endpoints created in Vertex UI)
@@ -143,31 +142,22 @@ TEST_MODE = os.environ.get('TEST_MODE', '').lower() in ('1', 'true', 'yes')
 DB_HOST = os.environ.get('DB_HOST')
 DB_USER = os.environ.get('DB_USER', 'postgres')
 DB_NAME = os.environ.get('DB_NAME', 'docintel_db')
-DB_SECRET_NAME = os.environ.get('SECRET_NAME', 'docintel-database-secret')
-DB_PASSWORD = None # Will be loaded from Secret Manager
+DB_PASSWORD = os.environ.get('DB_PASSWORD', '1234')  # Use environment variable only
+DISABLE_AUTH = os.environ.get('DISABLE_AUTH', 'false').lower() in ('1', 'true', 'yes')
 
 # --- Helper Functions ---
 
-def get_secret_value(secret_name: str) -> str:
-    """Retrieves a secret from Google Secret Manager."""
-    try:
-        name = f"projects/{PROJECT_ID}/secrets/{secret_name}/versions/latest"
-        response = secret_client.access_secret_version(request={"name": name})
-        return response.payload.data.decode("UTF-8")
-    except Exception as e:
-        logging.error(f"Failed to retrieve secret '{secret_name}': {e}")
-        raise
-
 def get_db_connection():
     """Establishes and returns a PostgreSQL database connection."""
-    global DB_PASSWORD
-    if DB_PASSWORD is None:
-        DB_PASSWORD = get_secret_value(DB_SECRET_NAME)
-        logging.info("DB password loaded from Secret Manager.")
-
     try:
+        # If DB_HOST is not set, allow connecting via Cloud SQL unix socket
+        host = DB_HOST
+        cloud_sql_conn_name = os.environ.get("CLOUD_SQL_CONNECTION_NAME")
+        if not host and cloud_sql_conn_name:
+            host = f"/cloudsql/{cloud_sql_conn_name}"
+
         conn = psycopg2.connect(
-            host=DB_HOST,
+            host=host,
             user=DB_USER,
             password=DB_PASSWORD,
             dbname=DB_NAME
@@ -209,6 +199,10 @@ async def get_current_user(authorization: Optional[str] = Header(None)) -> Dict[
     Accepts: 'Bearer <api_key>' or just the api_key in the header.
     Raises 401 if not found.
     """
+    # Allow bypassing auth for quick local/testing use when DISABLE_AUTH is true.
+    if DISABLE_AUTH:
+        return {"id": 0, "username": "public", "role": "manager", "departments": ["operations"]}
+
     if not authorization:
         raise HTTPException(status_code=401, detail="Missing Authorization header")
 
@@ -1160,12 +1154,31 @@ OUT_OF_SCOPE_PATTERNS = [
     "make a decision", "approve this"
 ]
 
+# Banking/Loan domain keywords - queries should relate to these topics
+BANKING_DOMAIN_KEYWORDS = [
+    "loan", "credit", "mortgage", "lending", "borrower", "applicant",
+    "collateral", "interest rate", "apr", "underwriting", "approval",
+    "disbursement", "repayment", "default", "delinquency", "financial",
+    "income", "debt", "dti", "ltv", "fico", "credit score", "bank",
+    "account", "deposit", "withdrawal", "transaction", "compliance",
+    "kyc", "aml", "regulatory", "policy", "procedure", "guideline",
+    "sop", "standard operating", "operations", "risk", "assessment"
+]
+
 def is_out_of_scope(query: str) -> Optional[str]:
     """Return reason if query is out of scope, else None."""
     q_lower = query.lower()
+    
+    # Check for explicit out-of-scope patterns (decision requests)
     for pattern in OUT_OF_SCOPE_PATTERNS:
         if pattern in q_lower:
             return f"Query contains out-of-scope request: '{pattern}'"
+    
+    # Check domain relevance - query must contain at least one banking keyword
+    has_banking_term = any(keyword in q_lower for keyword in BANKING_DOMAIN_KEYWORDS)
+    if not has_banking_term:
+        return "Query appears unrelated to banking, lending, or financial operations. This system only answers questions about loan processing SOPs, banking procedures, and financial compliance guidelines."
+    
     return None
 
 def sanitize_response(text: str) -> tuple:
@@ -1446,8 +1459,29 @@ async def rag_query_structured(body: RagQueryRequest, current_user: Dict[str, An
     # 1. Scope Validation
     scope_issue = is_out_of_scope(body.query)
     if scope_issue:
+        # For domain mismatch, return immediately with clear error
+        if "unrelated to banking" in scope_issue:
+            return RagQueryResponse(
+                session_id=session_id,
+                summary_answer="This system is designed exclusively for banking and loan processing queries. Your question appears to be outside this domain. Please ask questions related to loan applications, underwriting, compliance procedures, or banking operations.",
+                sources=[],
+                confidence=ConfidenceReport(
+                    overall_score=0.0,
+                    score_explanation="Query rejected: not related to banking domain",
+                    major_gaps=[scope_issue]
+                ),
+                procedural_steps=None,
+                audit_info=QueryAuditInfo(
+                    session_id=session_id,
+                    timestamp=query_timestamp.isoformat(),
+                    user_id=current_user.get('id'),
+                    user_role=current_user.get('role'),
+                    sop_versions_used=[],
+                    chunks_retrieved=0
+                )
+            )
         gaps.append(scope_issue)
-        # Log but continue - let response indicate limitation
+        # Log but continue for other scope issues
     
     # 2. Generate query embedding
     try:
@@ -1575,8 +1609,10 @@ async def rag_query_structured(body: RagQueryRequest, current_user: Dict[str, An
         gaps.append("RECOMMENDATION: Contact compliance team for manual guidance")
     else:
         avg_rel = sum(s['relevance_score'] for s in sources) / len(sources)
-        if avg_rel < 0.5:
+        if avg_rel < 0.6:
             gaps.append(f"Low relevance scores (avg: {avg_rel:.1%}) - results may not be directly applicable")
+            if avg_rel < 0.4:
+                gaps.append("WARNING: Very low relevance - retrieved content may be unrelated to your query")
     
     # 5. Extract procedural steps
     steps = None
@@ -1590,12 +1626,15 @@ async def rag_query_structured(body: RagQueryRequest, current_user: Dict[str, An
     
     system_prompt = """You are an SOP Query Assistant for a regulated banking environment.
 RULES:
+- ONLY answer questions about banking, loans, credit, underwriting, and financial operations
+- If the query is about cooking, recipes, entertainment, or other non-banking topics, respond: "I can only answer questions about banking and loan processing procedures."
 - Use ONLY the provided SOP content
 - Do NOT invent steps, rules, or thresholds
 - Do NOT use speculative language (probably, likely, might, could)
 - Distinguish fact from interpretation
 - If content is insufficient, say so explicitly
-- Reference section numbers when available"""
+- Reference section numbers when available
+- If retrieved content seems unrelated to the query, explicitly state this mismatch"""
     
     user_prompt = f"""Query: {body.query}
 
@@ -2842,6 +2881,65 @@ class EmbeddingStatusResponse(BaseModel):
         from_attributes = True
 
 
+@app.get("/embedding-status/summary")
+async def get_embedding_status_summary(
+    department: Optional[str] = None,
+    current_user: Dict[str, Any] = Depends(get_current_user)
+):
+    """Get summary of embedding status across all documents."""
+    if TEST_MODE:
+        return {
+            "total": 100,
+            "pending": 5,
+            "complete": 92,
+            "failed": 3,
+            "oldest_pending_minutes": 15
+        }
+    
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    
+    # Build query with optional department filter
+    where_clause = ""
+    params = []
+    if department:
+        where_clause = "WHERE department_folder = %s"
+        params.append(department)
+    
+    cursor.execute(f"""
+        SELECT 
+            COUNT(*) as total,
+            COUNT(*) FILTER (WHERE embedding_status = 'pending') as pending,
+            COUNT(*) FILTER (WHERE embedding_status = 'complete') as complete,
+            COUNT(*) FILTER (WHERE embedding_status = 'failed') as failed,
+            MIN(embedding_eligible_at) FILTER (WHERE embedding_status = 'pending') as oldest_pending
+        FROM documents
+        {where_clause}
+    """, params)
+    
+    row = cursor.fetchone()
+    cursor.close()
+    conn.close()
+    
+    total, pending, complete, failed, oldest_pending = row
+    
+    # Calculate oldest pending age in minutes
+    oldest_pending_minutes = None
+    if oldest_pending:
+        from datetime import datetime
+        now = datetime.now(timezone.utc)
+        if oldest_pending.tzinfo is None:
+            oldest_pending = oldest_pending.replace(tzinfo=timezone.utc)
+        oldest_pending_minutes = int((now - oldest_pending).total_seconds() / 60)
+    
+    return {
+        "total": total or 0,
+        "pending": pending or 0,
+        "complete": complete or 0,
+        "failed": failed or 0,
+        "oldest_pending_minutes": oldest_pending_minutes
+    }
+
 @app.get("/embedding-status/{doc_id}", response_model=EmbeddingStatusResponse)
 async def get_embedding_status_by_id(doc_id: int, current_user: Dict[str, Any] = Depends(get_current_user)):
     """Check embedding status for a specific document by ID."""
@@ -3495,7 +3593,7 @@ async def upload_ui():
     """Serve the document upload & confirmation UI."""
     try:
         # Try to read from file (production)
-        with open('docintel-data-processor/upload_ui.html', 'r') as f:
+        with open('upload_ui.html', 'r') as f:
             return f.read()
     except FileNotFoundError:
         # Fallback inline HTML (for environments without file access)
@@ -3504,7 +3602,7 @@ async def upload_ui():
         <html>
         <head><title>Upload UI Not Found</title></head>
         <body>
-            <p>Upload UI not available. Ensure upload_ui.html exists in docintel-data-processor/</p>
+            <p>Upload UI not available. Ensure upload_ui.html exists in /app/</p>
         </body>
         </html>
         """

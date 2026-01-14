@@ -927,240 +927,237 @@
 
 					<div style="display: flex; gap: 10px;">
 						<button class="button button-primary" id="uploadBtn">Send</button>
-					</div>
-				</div>
+						<!-- QUERY SECTION -->
+						<div id="query" class="section">
+							<div id="queryStatus" class="status-message"></div>
 
-				<!-- QUERY SECTION -->
-				<div id="query" class="section">
-					<div id="queryStatus" class="status-message"></div>
-
-					<div class="box">
-						<div class="box-title">Your Question</div>
-						<textarea id="queryInput"
-							placeholder="Type your question here... e.g., 'Can we approve a $50k loan for a customer with 6 months employment history?'"></textarea>
-						<button class="button button-primary" id="submitQueryBtn"
-							style="margin-top: 15px;">Submit
-							Query</button>
-					</div>
-
-					<div class="box">
-						<div class="box-title">Conversation</div>
-						<div id="chatContainer" class="chat-container">
-							<div id="chatMessages" class="chat-messages">
-								<!-- Messages will be appended here -->
+							<div class="box">
+								<div class="box-title">Your Question</div>
+								<textarea id="queryInput"
+									placeholder="Type your question here... e.g., 'Can we approve a $50k loan for a customer with 6 months employment history?'"></textarea>
+								<button class="button button-primary" id="submitQueryBtn"
+									style="margin-top: 15px;">Submit
+									Query</button>
 							</div>
-						</div>
-					</div>
 
-					<div style="display: flex; gap: 10px; margin-bottom: 20px;">
-						<button class="button button-primary" id="viewSimilarBtn" disabled>Similar Cases
-							Insight</button>
-						<button class="button button-secondary" id="clearQueryBtn">Clear Conversation</button>
-					</div>
-
-					<div id="precedentCardsContainer" class="precedent-cards-container hidden"></div>
-				</div>
-
-				<!-- MANAGER SECTION -->
-				<div id="manager" class="section">
-					<div id="managerStatus" class="status-message"></div>
-
-					<div class="box">
-						<div class="box-title">Unresolved Cases - Analytics</div>
-							<div class="metrics-dashboard">
-								<div class="metric-card">
-									<div class="metric-label">Similar Cases (4mo)</div>
-									<div class="metric-value" id="metricCases">77</div>
-									<div class="metric-subtext">Across organization</div>
-								</div>
-								<div class="metric-card">
-									<div class="metric-label">Officers Involved</div>
-									<div class="metric-value" id="metricOfficers">22</div>
-									<div class="metric-subtext">Client-facing team</div>
-								</div>
-								<div class="metric-card">
-									<div class="metric-label">Pending Review</div>
-									<div class="metric-value" id="metricPending">5</div>
-									<div class="metric-subtext">Awaiting approval</div>
+							<div class="box">
+								<div class="box-title">Conversation</div>
+								<div id="chatContainer" class="chat-container">
+									<div id="chatMessages" class="chat-messages">
+										<!-- Messages will be appended here -->
+									</div>
 								</div>
 							</div>
 
-							<div class="demographic-breakdown">
-								<div style="font-weight: 600; margin-bottom: 10px; font-size: 13px;">Customer
-									Demographics
-									in Unresolved Cases</div>
-								<div class="demographic-item">
-									<span>High-earning customers (&gt;$100k/yr)</span>
-									<span style="font-weight: 600;">34 cases (44%)</span>
-								</div>
-								<div class="demographic-item">
-									<span>Mid-income customers ($50k-$100k/yr)</span>
-									<span style="font-weight: 600;">28 cases (36%)</span>
-								</div>
-								<div class="demographic-item">
-									<span>Low-income customers (&lt;$50k/yr)</span>
-									<span style="font-weight: 600;">15 cases (20%)</span>
-								</div>
+							<div style="display: flex; gap: 10px; margin-bottom: 20px;">
+								<button class="button button-primary" id="viewSimilarBtn" disabled>Similar Cases
+									Insight</button>
+								<button class="button button-secondary" id="clearQueryBtn">Clear Conversation</button>
 							</div>
+
+							<div id="precedentCardsContainer" class="precedent-cards-container hidden"></div>
 						</div>
 
-						<div id="overridesContainer">
-							<div class="override-card">
-								<div class="override-header">
-									<div>
-										<div class="override-title">Override #OV-2026-001</div>
-										<div class="override-meta">Submitted: Jan 12, 2026 | Officer: Sarah
-											Johnson</div>
+						<!-- MANAGER SECTION -->
+						<div id="manager" class="section">
+							<div id="managerStatus" class="status-message"></div>
+
+							<div class="box">
+								<div class="box-title">Unresolved Cases - Analytics</div>
+									<div class="metrics-dashboard">
+										<div class="metric-card">
+											<div class="metric-label">Similar Cases (4mo)</div>
+											<div class="metric-value" id="metricCases">77</div>
+											<div class="metric-subtext">Across organization</div>
+										</div>
+										<div class="metric-card">
+											<div class="metric-label">Officers Involved</div>
+											<div class="metric-value" id="metricOfficers">22</div>
+											<div class="metric-subtext">Client-facing team</div>
+										</div>
+										<div class="metric-card">
+											<div class="metric-label">Pending Review</div>
+											<div class="metric-value" id="metricPending">5</div>
+											<div class="metric-subtext">Awaiting approval</div>
+										</div>
+									</div>
+
+									<div class="demographic-breakdown">
+										<div style="font-weight: 600; margin-bottom: 10px; font-size: 13px;">Customer
+											Demographics
+											in Unresolved Cases</div>
+										<div class="demographic-item">
+											<span>High-earning customers (&gt;$100k/yr)</span>
+											<span style="font-weight: 600;">34 cases (44%)</span>
+										</div>
+										<div class="demographic-item">
+											<span>Mid-income customers ($50k-$100k/yr)</span>
+											<span style="font-weight: 600;">28 cases (36%)</span>
+										</div>
+										<div class="demographic-item">
+											<span>Low-income customers (&lt;$50k/yr)</span>
+											<span style="font-weight: 600;">15 cases (20%)</span>
+										</div>
 									</div>
 								</div>
 
-								<div class="override-section">
-									<div class="override-section-label">Pre-Generated SOP</div>
-									<textarea class="override-sop" data-id="OV-2026-001"
-										style="width: 100%; min-height: 150px;">For loans above $50,000 with non-traditional employment history:
+								<div id="overridesContainer">
+									<div class="override-card">
+										<div class="override-header">
+											<div>
+												<div class="override-title">Override #OV-2026-001</div>
+												<div class="override-meta">Submitted: Jan 12, 2026 | Officer: Sarah
+													Johnson</div>
+											</div>
+										</div>
+
+										<div class="override-section">
+											<div class="override-section-label">Pre-Generated SOP</div>
+											<textarea class="override-sop" data-id="OV-2026-001"
+												style="width: 100%; min-height: 150px;">For loans above $50,000 with non-traditional employment history:
 1. Request 12 months of income verification
 2. Require co-signer with established credit
 3. Conduct extended underwriting review
 4. Limit loan-to-value ratio to 75%
 
 This SOP was generated based on similar approved cases where success rate was 78%.</textarea>
-								</div>
+										</div>
 
-								<div class="override-section">
-									<div class="override-section-label">AI Justification</div>
-									<textarea class="override-justification" data-id="OV-2026-001"
-										style="width: 100%; min-height: 120px;">The AI recommended denial because the applicant had only 6 months employment history, which is below the standard 12-month requirement. However, this SOP was generated based on 12 similar cases where applicants had comparable employment gaps but were approved through enhanced underwriting.</textarea>
-								</div>
+										<div class="override-section">
+											<div class="override-section-label">AI Justification</div>
+											<textarea class="override-justification" data-id="OV-2026-001"
+												style="width: 100%; min-height: 120px;">The AI recommended denial because the applicant had only 6 months employment history, which is below the standard 12-month requirement. However, this SOP was generated based on 12 similar cases where applicants had comparable employment gaps but were approved through enhanced underwriting.</textarea>
+										</div>
 
-								<div class="override-actions">
-									<button class="button button-primary"
-										onclick="regenerateSOP('OV-2026-001')">🔄
-										Regenerate SOP</button>
-									<button class="button button-primary"
-										onclick="approveOverride('OV-2026-001')">✓ Approve
-										& Resolve</button>
-								</div>
-							</div>
-
-							<div class="override-card">
-								<div class="override-header">
-									<div>
-										<div class="override-title">Override #OV-2026-002</div>
-										<div class="override-meta">Submitted: Jan 13, 2026 | Officer: Mark Chen
+										<div class="override-actions">
+											<button class="button button-primary"
+												onclick="regenerateSOP('OV-2026-001')">🔄
+												Regenerate SOP</button>
+											<button class="button button-primary"
+												onclick="approveOverride('OV-2026-001')">✓ Approve
+												& Resolve</button>
 										</div>
 									</div>
-								</div>
 
-								<div class="override-section">
-									<div class="override-section-label">Pre-Generated SOP</div>
-									<textarea class="override-sop" data-id="OV-2026-002"
-										style="width: 100%; min-height: 150px;">For self-employed applicants with variable income:
+									<div class="override-card">
+										<div class="override-header">
+											<div>
+												<div class="override-title">Override #OV-2026-002</div>
+												<div class="override-meta">Submitted: Jan 13, 2026 | Officer: Mark Chen
+												</div>
+											</div>
+										</div>
+
+										<div class="override-section">
+											<div class="override-section-label">Pre-Generated SOP</div>
+											<textarea class="override-sop" data-id="OV-2026-002"
+												style="width: 100%; min-height: 150px;">For self-employed applicants with variable income:
 1. Request 2 years of tax returns
 2. Average income across last 24 months
 3. Require business license verification
 4. Document any business-related debts
 
 Success rate: 82% with this approach.</textarea>
-								</div>
+										</div>
 
-								<div class="override-section">
-									<div class="override-section-label">AI Justification</div>
-									<textarea class="override-justification" data-id="OV-2026-002"
-										style="width: 100%; min-height: 120px;">The AI recommended denial due to inconsistent income documentation. However, analysis of similar approved cases shows that self-employed applicants with proper tax documentation have a high approval success rate of 82%.</textarea>
-								</div>
+										<div class="override-section">
+											<div class="override-section-label">AI Justification</div>
+											<textarea class="override-justification" data-id="OV-2026-002"
+												style="width: 100%; min-height: 120px;">The AI recommended denial due to inconsistent income documentation. However, analysis of similar approved cases shows that self-employed applicants with proper tax documentation have a high approval success rate of 82%.</textarea>
+										</div>
 
-								<div class="override-actions">
-									<button class="button button-primary"
-										onclick="regenerateSOP('OV-2026-002')">🔄
-										Regenerate SOP</button>
-									<button class="button button-primary"
-										onclick="approveOverride('OV-2026-002')">✓ Approve
-										& Resolve</button>
-								</div>
-							</div>
-						</div>
-					</div>
-
-					<!-- LOANS DEMO SECTION -->
-					<div id="loans" class="section">
-						<div id="loansStatus" class="status-message"></div>
-
-						<div class="box">
-							<div class="box-title">Loan Application Case #L-2026-5847</div>
-							<div class="loans-grid">
-								<div class="client-data">
-									<div style="font-weight: 600; margin-bottom: 15px; color: #667eea;">
-										Applicant
-										Information</div>
-									<div class="client-row">
-										<span class="client-label">Name</span>
-										<span class="client-value">Alex Martinez</span>
+										<div class="override-actions">
+											<button class="button button-primary"
+												onclick="regenerateSOP('OV-2026-002')">🔄
+												Regenerate SOP</button>
+											<button class="button button-primary"
+												onclick="approveOverride('OV-2026-002')">✓ Approve
+												& Resolve</button>
+										</div>
 									</div>
-									<div class="client-row">
-										<span class="client-label">Age</span>
-										<span class="client-value">32</span>
-									</div>
-									<div class="client-row">
-										<span class="client-label">Annual Income</span>
-										<span class="client-value">$75,000</span>
-									</div>
-									<div class="client-row">
-										<span class="client-label">Credit Score</span>
-										<span class="client-value">680</span>
-									</div>
-									<div class="client-row">
-										<span class="client-label">Employment</span>
-										<span class="client-value">Self-employed (24mo)</span>
-									</div>
-									<div class="client-row">
-										<span class="client-label">Loan Amount</span>
-										<span class="client-value">$35,000</span>
-									</div>
-									<div class="client-row">
-										<span class="client-label">Purpose</span>
-										<span class="client-value">Business expansion</span>
-									</div>
-									<div class="client-row">
-										<span class="client-label">Debt-to-Income</span>
-										<span class="client-value">28%</span>
-									</div>
-								</div>
-
-								<div class="ai-decision decision-denied">
-									<div class="decision-label">AI RECOMMENDATION</div>
-									<div class="decision-text">DENIED</div>
-									<div class="decision-confidence">Confidence: 72%</div>
-									<p style="font-size: 12px; color: #666; margin-top: 10px;">Based on current
-										SOP: Credit
-										score below 700</p>
 								</div>
 							</div>
-						</div>
 
-						<div class="box justification-box">
-							<div class="box-title">AI Justification (based on existing SOPs)</div>
-							<p style="font-size: 13px; line-height: 1.6; color: #555;">
-								The AI decision to deny this loan is based on the following existing SOPs:
-							</p>
-							<ul style="margin: 15px 0 0 20px; font-size: 13px; line-height: 1.6; color: #555;">
-								<li><strong>Minimum Credit Score SOP:</strong> All applicants must have a
-									minimum credit
-									score of 700. This applicant has 680.</li>
-								<li><strong>Self-Employment SOP:</strong> Self-employed applicants require 24+
-									months
-									history (met) AND a minimum credit score of 700 (not met).</li>
-								<li><strong>Low Credit Score Risk:</strong> Historical data shows 15% default
-									rate for
-									applicants with credit scores 650-700 vs 3% for 700+.</li>
-							</ul>
-							<button class="button button-danger override-button"
-								onclick="showOverrideModal()">Disagree &
-								Override</button>
+							<!-- LOANS DEMO SECTION -->
+							<div id="loans" class="section">
+								<div id="loansStatus" class="status-message"></div>
+
+								<div class="box">
+									<div class="box-title">Loan Application Case #L-2026-5847</div>
+									<div class="loans-grid">
+										<div class="client-data">
+											<div style="font-weight: 600; margin-bottom: 15px; color: #667eea;">
+												Applicant
+												Information</div>
+											<div class="client-row">
+												<span class="client-label">Name</span>
+												<span class="client-value">Alex Martinez</span>
+											</div>
+											<div class="client-row">
+												<span class="client-label">Age</span>
+												<span class="client-value">32</span>
+											</div>
+											<div class="client-row">
+												<span class="client-label">Annual Income</span>
+												<span class="client-value">$75,000</span>
+											</div>
+											<div class="client-row">
+												<span class="client-label">Credit Score</span>
+												<span class="client-value">680</span>
+											</div>
+											<div class="client-row">
+												<span class="client-label">Employment</span>
+												<span class="client-value">Self-employed (24mo)</span>
+											</div>
+											<div class="client-row">
+												<span class="client-label">Loan Amount</span>
+												<span class="client-value">$35,000</span>
+											</div>
+											<div class="client-row">
+												<span class="client-label">Purpose</span>
+												<span class="client-value">Business expansion</span>
+											</div>
+											<div class="client-row">
+												<span class="client-label">Debt-to-Income</span>
+												<span class="client-value">28%</span>
+											</div>
+										</div>
+
+										<div class="ai-decision decision-denied">
+											<div class="decision-label">AI RECOMMENDATION</div>
+											<div class="decision-text">DENIED</div>
+											<div class="decision-confidence">Confidence: 72%</div>
+											<p style="font-size: 12px; color: #666; margin-top: 10px;">Based on current
+												SOP: Credit
+												score below 700</p>
+										</div>
+									</div>
+								</div>
+
+								<div class="box justification-box">
+									<div class="box-title">AI Justification (based on existing SOPs)</div>
+									<p style="font-size: 13px; line-height: 1.6; color: #555;">
+										The AI decision to deny this loan is based on the following existing SOPs:
+									</p>
+									<ul style="margin: 15px 0 0 20px; font-size: 13px; line-height: 1.6; color: #555;">
+										<li><strong>Minimum Credit Score SOP:</strong> All applicants must have a
+											minimum credit
+											score of 700. This applicant has 680.</li>
+										<li><strong>Self-Employment SOP:</strong> Self-employed applicants require 24+
+											months
+											history (met) AND a minimum credit score of 700 (not met).</li>
+										<li><strong>Low Credit Score Risk:</strong> Historical data shows 15% default
+											rate for
+											applicants with credit scores 650-700 vs 3% for 700+.</li>
+									</ul>
+									<button class="button button-danger override-button"
+										onclick="showOverrideModal()">Disagree &
+										Override</button>
+								</div>
+							</div>
 						</div>
 					</div>
 				</div>
-			</div>
-		</div>
 
 				<!-- Override Modal -->
 				<div id="overrideModal" class="modal">
