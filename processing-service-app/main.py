@@ -2,76 +2,33 @@ import os
 import json
 import functions_framework
 import logging
-try:
-    from google.cloud import storage, secretmanager
-except Exception:
-    storage = None
-    secretmanager = None
-from google.cloud.sql.connector import Connector
-try:
-    # Newer versions expose the RAG client here
-    from google.cloud.aiplatform import RagCorpusServiceClient, ImportRagFilesRequest
-except Exception:
-    try:
-        # Older/newer packaging may expose the v1 client module
-        from google.cloud.aiplatform_v1 import RagCorpusServiceClient, ImportRagFilesRequest
-    except Exception:
-        RagCorpusServiceClient = None
-        ImportRagFilesRequest = None
-import pg8000.dbapi # Required for Connector to work with pg8000
+# Local-first: remove Google Cloud SDK dependencies. Use adapters for storage/indexing.
 import uuid # For generating UUIDs for SOPs if needed
+import psycopg2
 
-# Initialize Google Cloud clients (optional)
-storage_client = None
-secret_client = None
-if storage is not None:
-    try:
-        storage_client = storage.Client()
-    except Exception:
-        storage_client = None
-if secretmanager is not None:
-    try:
-        secret_client = secretmanager.SecretManagerServiceClient()
-    except Exception:
-        secret_client = None
-
-# --- Configuration from Environment Variables (set by Terraform) ---
-PROJECT_ID = os.environ.get("PROJECT_ID")
-REGION = os.environ.get("REGION") # Added REGION env var
-DB_INSTANCE_CONNECTION_NAME = os.environ.get("DB_INSTANCE_CONNECTION_NAME")
+# --- Configuration from Environment Variables ---
+REGION = os.environ.get("REGION")
+DB_HOST = os.environ.get("DB_HOST")
 DB_NAME = os.environ.get("DB_NAME")
 DB_USER = os.environ.get("DB_USER")
-DB_SECRET_NAME = os.environ.get("DB_SECRET_NAME")
-GCS_BUCKET_NAME = os.environ.get("GCS_BUCKET_NAME")
-RAG_CORPUS_NAME = os.environ.get("RAG_CORPUS_NAME") # Full resource name, e.g., projects/PROJECT_ID/locations/REGION/ragCorpora/CORPUS_ID
+DB_PASSWORD = os.environ.get("DB_PASSWORD")
+STORAGE_ROOT = os.environ.get('STORAGE_ROOT')
 
 logging.basicConfig(level=logging.INFO)
 
-def get_db_password():
-    """Retrieves the database password from Secret Manager."""
-    secret_resource_name = f"projects/{PROJECT_ID}/secrets/{DB_SECRET_NAME}/versions/latest"
-    try:
-        response = secret_client.access_secret_version(request={"name": secret_resource_name})
-        return response.payload.data.decode("UTF-8")
-    except Exception as e:
-        logging.error(f"Failed to retrieve DB password from Secret Manager: {e}")
-        raise
-
 def get_connection():
-    """Establishes a secure connection to Cloud SQL."""
-    db_pass = get_db_password()
-    logging.info(f"Connecting to Cloud SQL instance: {DB_INSTANCE_CONNECTION_NAME}")
+    """Establishes and returns a PostgreSQL database connection using psycopg2.
+
+    Requires `DB_PASSWORD` to be set in the environment for local-first operation.
+    """
+    if not DB_PASSWORD:
+        logging.error('DB_PASSWORD not set; cannot connect to database')
+        raise RuntimeError('DB_PASSWORD not set')
     try:
-        conn = Connector().connect(
-            DB_INSTANCE_CONNECTION_NAME,
-            "pg8000",
-            user=DB_USER,
-            password=db_pass,
-            db=DB_NAME,
-        )
+        conn = psycopg2.connect(host=DB_HOST, user=DB_USER, password=DB_PASSWORD, dbname=DB_NAME)
         return conn
     except Exception as e:
-        logging.error(f"Failed to connect to Cloud SQL: {e}")
+        logging.error(f"Failed to connect to database: {e}", exc_info=True)
         raise
 
 # --- Placeholder for Document Parsing and Metadata Extraction ---
@@ -183,45 +140,15 @@ def process_sop_document(cloud_event):
         conn.commit()
         logging.info("Metadata and audit log saved to Cloud SQL.")
 
-        # 4. Add document to Vertex AI RAG Corpus
-        # Vertex AI RAG Engine simplifies this: you tell it the GCS URI
-        # It handles chunking, embedding, and indexing.
-        # The 'state' in Cloud SQL is 'Draft' at this point.
-        # In a real system, RAG indexing would happen when a version becomes 'Active'.
-        # For hackathon MVP, we'll index all ingested documents directly to simplify demo.
-
-        if RagCorpusServiceClient is None or ImportRagFilesRequest is None:
-            logging.warning("RAG import client not available in this runtime; skipping RAG import.")
-        else:
-            rag_corpus_service_client = RagCorpusServiceClient(
-                client_options={"api_endpoint": f"{REGION}-aiplatform.googleapis.com"}
-            )
-
-            request = ImportRagFilesRequest(
-                parent=RAG_CORPUS_NAME,
-                import_rag_files_config=ImportRagFilesRequest.ImportRagFilesConfig(
-                    gcs_source=ImportRagFilesRequest.ImportRagFilesConfig.GcsSource(
-                        uris=[gcs_uri]
-                    ),
-                    rag_file_chunking_config=ImportRagFilesRequest.ImportRagFilesConfig.RagFileChunkingConfig(
-                        chunk_size=512 # You can adjust chunk size
-                    )
-                )
-            )
-
-            logging.info(f"Importing {gcs_uri} to RAG Corpus {RAG_CORPUS_NAME}...")
-            operation = rag_corpus_service_client.import_rag_files(request=request)
-            # The import operation is asynchronous, so we don't wait for completion here for MVP.
-            # In production, you'd monitor this operation.
-            try:
-                op_name = getattr(operation, "operation", None)
-                if op_name is None:
-                    logging.info(f"Started RAG file import operation: {operation}")
-                else:
-                    logging.info(f"Started RAG file import operation: {op_name.name}")
-            except Exception:
-                logging.info("Started RAG file import operation (could not parse operation name)")
-            logging.info(f"Successfully processed {file_name}.")
+        # 4. Indexing step: use a pluggable adapter for indexing/vector store.
+        # The original code used a hosted RAG service; this repo uses adapters so
+        # you can index to a local vector store (Qdrant) or any hosted index.
+        try:
+            from adapters.index_adapter import index_document_if_available
+            index_document_if_available(sop_id, version_id, file_content, metadata=sop_metadata)
+            logging.info(f"Indexing requested for {file_name} via adapter")
+        except Exception:
+            logging.info("No index adapter available; skipping indexing step")
 
     except Exception as e:
         logging.error(f"Error processing file {file_name}: {e}", exc_info=True)

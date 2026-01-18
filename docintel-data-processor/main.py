@@ -8,52 +8,27 @@ import time
 import threading
 from concurrent.futures import ThreadPoolExecutor
 import httpx
-try:
-    from google import genai
-    from google.genai import types
-    _GENAI_AVAILABLE = True
-    _GENAI_CLIENT = None
-    _VERTEX_SDK_AVAILABLE = False
-    vertexai = None
-    TextEmbeddingModel = None
-    GenerativeModel = None
-except Exception:
-    _GENAI_AVAILABLE = False
-    genai = None
-    types = None
-    _GENAI_CLIENT = None
-    # Fall back to legacy vertexai if present in the environment
-    try:
-        import vertexai
-        from vertexai.language_models import TextEmbeddingModel
-        from vertexai.generative_models import GenerativeModel
-        _VERTEX_SDK_AVAILABLE = True
-    except Exception:
-        _VERTEX_SDK_AVAILABLE = False
-        vertexai = None
-        TextEmbeddingModel = None
-        GenerativeModel = None
-from google.auth.transport.requests import Request as GoogleAuthRequest
+
+# Local-first: remove hosted GenAI/Vertex dependencies. Use adapters where available.
+_GENAI_AVAILABLE = False
+_GENAI_CLIENT = None
+_VERTEX_SDK_AVAILABLE = False
+genai = None
+types = None
+vertexai = None
+TextEmbeddingModel = None
+GenerativeModel = None
 from datetime import datetime, timezone, timedelta
 import uuid
 
 from fastapi import FastAPI, Request, HTTPException, Depends, Header
 from fastapi.responses import HTMLResponse
 from fastapi.middleware.cors import CORSMiddleware
-try:
-    from google.cloud import storage, pubsub_v1
-except Exception:
-    storage = None
-    pubsub_v1 = None
-
-try:
-    from google.oauth2 import service_account
-    from google.auth.transport.requests import AuthorizedSession
-    import google.auth
-except Exception:
-    service_account = None
-    AuthorizedSession = None
-    google = None
+storage = None
+pubsub_v1 = None
+service_account = None
+AuthorizedSession = None
+google = None
 import psycopg2
 from psycopg2.extras import execute_values
 from pypdf import PdfReader # For PDF parsing
@@ -100,23 +75,9 @@ _AUTH_SESSION = None
 _AUTH_LOCK = threading.Lock()
 
 def get_authed_session():
-    global _AUTH_SESSION
-    # Make initialization thread-safe to avoid races during cold starts
-    if _AUTH_SESSION:
-        return _AUTH_SESSION
-    with _AUTH_LOCK:
-        if _AUTH_SESSION:
-            return _AUTH_SESSION
-        # Prefer ADC, fall back to service account key if provided
-        try:
-            creds, _ = google.auth.default()
-        except Exception:
-            key_path = os.environ.get('GOOGLE_APPLICATION_CREDENTIALS')
-            if not key_path:
-                raise RuntimeError('No Google credentials found (set GOOGLE_APPLICATION_CREDENTIALS or application default).')
-            creds = service_account.Credentials.from_service_account_file(key_path)
-        _AUTH_SESSION = AuthorizedSession(creds)
-        return _AUTH_SESSION
+    # Local-first repo: no hosted auth session. Return None and let callers
+    # use adapter-based authentication or unauthenticated requests as appropriate.
+    return None
 
 
 async def async_post_with_retries(url, json=None, headers=None, timeout=None, retries=3, backoff_factor=1.0):
@@ -144,19 +105,11 @@ async def async_post_with_retries(url, json=None, headers=None, timeout=None, re
 
 
 def get_auth_headers():
-    """Return Authorization headers by ensuring credentials are fresh."""
-    session = get_authed_session()
-    creds = getattr(session, 'credentials', None)
-    if creds is None:
-        return {}
-    try:
-        creds.refresh(GoogleAuthRequest())
-    except Exception:
-        # best-effort; if refresh fails token may still be present
-        pass
-    token = getattr(creds, 'token', None)
-    if token:
-        return {"Authorization": f"Bearer {token}"}
+    """Return Authorization headers.
+
+    In local-first mode there is no hosted auth; adapters may provide headers
+    when necessary. Return an empty dict by default.
+    """
     return {}
 
 # Environment Variables
@@ -377,147 +330,24 @@ def chunk_text(text: str, chunk_size: int = 1000, overlap: int = 100) -> List[st
     return chunks
 
 async def get_text_embeddings(texts: List[str]) -> List[List[float]]:
-    """Generates embeddings for a list of texts using either the Vertex SDK (preferred)
-    or a Vertex Endpoint via REST as a fallback.
+    """Generate embeddings using the local adapter.
 
-    Acceptable configurations:
-      - Vertex SDK available and `EMBEDDING_MODEL_ID` set -> use SDK
-      - `EMBEDDING_ENDPOINT` set -> use REST predict endpoint
+    The repository favors adapter-based embeddings. The function attempts to
+    load `adapters.embedding_adapter.get_embeddings` and run it in a thread
+    (the adapter may be sync). If no adapter is available, raise a clear
+    error instructing how to configure an embedding provider.
     """
-    # If an explicit EMBEDDING_PROVIDER is configured (stub/local/hosted) or
-    # no Vertex-style embedding config is present, prefer the local adapter.
-    provider_env = os.environ.get('EMBEDDING_PROVIDER', 'auto').lower()
-    if provider_env in ('stub', 'local', 'hosted') or not (EMBEDDING_ENDPOINT or EMBEDDING_MODEL_ID):
-        try:
-            from adapters.embedding_adapter import get_embeddings as _adapter_get_embeddings
-            # run sync embedder in thread to avoid blocking the event loop
-            return await asyncio.to_thread(_adapter_get_embeddings, texts)
-        except Exception:
-            logging.exception('Adapter-based embedding failed; falling back to configured Vertex endpoint')
-
-    if not (EMBEDDING_ENDPOINT or EMBEDDING_MODEL_ID):
-        raise RuntimeError('No embedding configuration: set EMBEDDING_ENDPOINT or EMBEDDING_MODEL_ID, or set EMBEDDING_PROVIDER')
-
-    embeddings: List[List[float]] = []
-    headers = get_auth_headers()
-
     try:
-        # Use a smaller batch size to avoid very large payloads and timeouts
-        batch_size = 100
-        for i in range(0, len(texts), batch_size):
-            batch = texts[i:i+batch_size]
-            logging.info(f"Generating embeddings for batch {i//batch_size + 1}...")
-            # If vertex-ai SDK is available and a model ID is configured, prefer SDK call
-            if _GENAI_AVAILABLE and EMBEDDING_MODEL_ID:
-                def _sdk_embed_call():
-                    global _GENAI_CLIENT
-                    if _GENAI_CLIENT is None:
-                        # create genai client lazily
-                        _GENAI_CLIENT = genai.Client(vertexai=True, project=PROJECT_ID, location=REGION)
-                    vecs_local = []
-                    # call embed_content per input to avoid uncertain batch support
-                    for txt in batch:
-                        try:
-                            resp = _GENAI_CLIENT.models.embed_content(model=EMBEDDING_MODEL_ID, contents=txt)
-                            # robust extraction
-                            emb = None
-                            if hasattr(resp, 'embedding'):
-                                emb = getattr(resp, 'embedding')
-                            elif hasattr(resp, 'embeddings'):
-                                emb = resp.embeddings[0]
-                            elif hasattr(resp, 'data') and len(resp.data) > 0 and hasattr(resp.data[0], 'embedding'):
-                                emb = resp.data[0].embedding
-                            if emb is None:
-                                try:
-                                    d = resp.__dict__
-                                    for v in d.values():
-                                        if isinstance(v, (list, tuple)) and len(v) > 0 and all(isinstance(x, (int, float)) for x in v):
-                                            emb = v
-                                            break
-                                except Exception:
-                                    emb = None
-                            vecs_local.append([float(x) for x in emb] if emb else [])
-                        except Exception:
-                            vecs_local.append([])
-                    return vecs_local
+        from adapters.embedding_adapter import get_embeddings as _adapter_get_embeddings
+    except Exception:
+        raise RuntimeError('No embedding adapter available. Implement adapters/embedding_adapter.py or set EMBEDDING_PROVIDER.')
 
-                try:
-                    vecs = await asyncio.to_thread(_sdk_embed_call)
-                    embeddings.extend(vecs)
-                    continue
-                except Exception:
-                    logging.exception('GenAI SDK embedding call failed; falling back to REST predict')
-            # If google-genai is not available, allow legacy vertexai SDK path
-            if _VERTEX_SDK_AVAILABLE and EMBEDDING_MODEL_ID:
-                def _vertex_sdk_embed_call():
-                    global _EMBEDDING_MODEL
-                    if _EMBEDDING_MODEL is None:
-                        vertexai.init(project=PROJECT_ID, location=REGION)
-                        _EMBEDDING_MODEL = TextEmbeddingModel.from_pretrained(EMBEDDING_MODEL_ID)
-                    resp = _EMBEDDING_MODEL.get_embeddings(batch)
-                    vecs = []
-                    for e in getattr(resp, 'embeddings', []):
-                        vals = getattr(e, 'values', None) or getattr(e, 'embedding', None) or []
-                        vecs.append([float(x) for x in vals])
-                    return vecs
-
-                try:
-                    vecs = await asyncio.to_thread(_vertex_sdk_embed_call)
-                    embeddings.extend(vecs)
-                    continue
-                except Exception:
-                    logging.exception('Vertex SDK embedding call failed; falling back to REST predict')
-
-            # Prefer model-ID predict URL if provided (projects/{project}/locations/{region}/models/{model}:predict)
-            if EMBEDDING_MODEL_ID:
-                model_part = EMBEDDING_MODEL_ID
-                # If a fully-qualified model resource was provided, use it; otherwise build model path
-                if model_part.startswith('projects/'):
-                    url = f"https://{REGION}-aiplatform.googleapis.com/v1/{model_part}:predict"
-                else:
-                    url = f"https://{REGION}-aiplatform.googleapis.com/v1/projects/{PROJECT_ID}/locations/{REGION}/models/{model_part}:predict"
-            elif EMBEDDING_ENDPOINT:
-                url = f"https://{REGION}-aiplatform.googleapis.com/v1/{EMBEDDING_ENDPOINT}:predict"
-            else:
-                raise RuntimeError('No EMBEDDING_MODEL_ID or EMBEDDING_ENDPOINT configured')
-            payload = {"instances": [{"content": t} for t in batch]}
-            try:
-                resp = await async_post_with_retries(url, json=payload, headers=headers, timeout=(5.0, 60.0), retries=3, backoff_factor=1.0)
-                data = resp.json()
-            except httpx.ReadTimeout:
-                logging.exception('Embedding request timed out')
-                raise asyncio.TimeoutError('Embedding request timed out')
-            # Robust parsing for embedding shapes
-            preds = data.get('predictions') or data.get('outputs') or data.get('embeddings')
-            if preds is None:
-                raise ValueError('No predictions/embeddings in Vertex response')
-            # predictions may be list of lists (vectors) or list of dicts with 'embedding' key
-            for p in preds:
-                if isinstance(p, list):
-                    embeddings.append([float(x) for x in p])
-                elif isinstance(p, dict):
-                    if 'embedding' in p:
-                        embeddings.append([float(x) for x in p['embedding']])
-                    elif 'vector' in p:
-                        embeddings.append([float(x) for x in p['vector']])
-                    elif 'value' in p and isinstance(p['value'], list):
-                        embeddings.append([float(x) for x in p['value']])
-                    else:
-                        # try to extract first list-like value
-                        found = False
-                        for v in p.values():
-                            if isinstance(v, list):
-                                embeddings.append([float(x) for x in v])
-                                found = True
-                                break
-                        if not found:
-                            raise ValueError('Unrecognized embedding format')
-        return embeddings
-    except asyncio.TimeoutError:
-        # Propagate as timeout to caller so they can map to 504 if desired
-        raise
+    # Run adapter in thread to avoid blocking the event loop if adapter is sync
+    try:
+        vecs = await asyncio.to_thread(_adapter_get_embeddings, texts)
+        return vecs
     except Exception as e:
-        logging.error(f"Failed to get text embeddings from Vertex Endpoint: {e}", exc_info=True)
+        logging.exception('Adapter-based embedding failed: %s', e)
         raise
 
 
@@ -1392,142 +1222,8 @@ async def rag_query_vertex_corpus(body: VertexRagQueryRequest, current_user: Dic
     - Automatic indexing and retrieval
     - No need for local pgvector
     """
-    session_id = str(uuid.uuid4())
-    gaps = []
-    
-    # 1. Scope Validation
-    scope_issue = is_out_of_scope(body.query)
-    if scope_issue:
-        gaps.append(scope_issue)
-    
-    # 2. Query Vertex AI RAG Corpus
-    url = f"https://{RAG_REGION}-aiplatform.googleapis.com/v1beta1/{RAG_CORPUS_NAME}:retrieveContexts"
-    headers = get_auth_headers()
-    headers["Content-Type"] = "application/json"
-    
-    payload = {
-        "query": {
-            "text": body.query,
-            "ragRetrievalConfig": {
-                "topK": body.top_k,
-                "filter": {
-                    "vectorSimilarityThreshold": body.similarity_threshold
-                }
-            }
-        },
-        "vertexRagStore": {
-            "ragCorpora": [RAG_CORPUS_NAME]
-        }
-    }
-    
-    contexts = []
-    try:
-        async with httpx.AsyncClient() as client:
-            resp = await client.post(url, headers=headers, json=payload, timeout=30.0)
-            
-            if resp.status_code != 200:
-                logging.error(f"RAG corpus query failed: {resp.status_code} - {resp.text}")
-                gaps.append(f"RAG corpus query failed: {resp.status_code}")
-            else:
-                data = resp.json()
-                raw_contexts = data.get('contexts', {}).get('contexts', [])
-                
-                for ctx in raw_contexts:
-                    contexts.append(VertexRagContext(
-                        source_uri=ctx.get('sourceUri'),
-                        text=ctx.get('text', ''),
-                        distance=ctx.get('distance')
-                    ))
-    except asyncio.TimeoutError:
-        gaps.append("RAG corpus query timed out")
-        logging.exception("RAG corpus query timed out")
-    except Exception as e:
-        gaps.append(f"RAG corpus error: {str(e)[:100]}")
-        logging.exception("RAG corpus query failed")
-    
-    # 3. Check coverage
-    if not contexts:
-        gaps.append("No matching content found in RAG corpus")
-        gaps.append("RECOMMENDATION: Ensure documents are imported into the corpus")
-    
-    # 4. Generate answer using retrieved contexts
-    summary_answer = "No answer could be generated."
-    
-    if contexts:
-        context_text = '\n\n---\n\n'.join([c.text for c in contexts])[:6000]
-        
-        system_prompt = """You are an SOP Query Assistant for a regulated banking environment.
-RULES:
-- Use ONLY the provided SOP content
-- Do NOT invent steps, rules, or thresholds
-- Do NOT use speculative language (probably, likely, might, could)
-- If content is insufficient, say so explicitly"""
-        
-        user_prompt = f"""Query: {body.query}
-
-SOP Content:
-{context_text}
-
-Provide a direct, procedural answer based ONLY on the above content."""
-        
-        try:
-            full_prompt = f"{system_prompt}\n\n{user_prompt}"
-            
-            if _GENAI_AVAILABLE:
-                client = _get_genai_client()
-                async def _gen():
-                    resp = await client.aio.models.generate_content(
-                        model=GENERATIVE_MODEL_ID or 'gemini-2.5-pro',
-                        contents=full_prompt,
-                        config=types.GenerateContentConfig(max_output_tokens=1024, temperature=0.1)
-                    )
-                    return resp.text if hasattr(resp, 'text') else str(resp)
-                raw_answer = await _gen()
-            else:
-                # REST fallback
-                gen_url = f"https://{REGION}-aiplatform.googleapis.com/v1/projects/{PROJECT_ID}/locations/{REGION}/publishers/google/models/{GENERATIVE_MODEL_ID or 'gemini-1.5-pro'}:generateContent"
-                gen_payload = {"contents": [{"parts": [{"text": full_prompt}]}], "generationConfig": {"maxOutputTokens": 1024, "temperature": 0.1}}
-                resp = await async_post_with_retries(gen_url, json=gen_payload, headers=get_auth_headers(), timeout=(5.0, 120.0))
-                data = resp.json()
-                candidates = data.get('candidates', [])
-                if candidates:
-                    parts = candidates[0].get('content', {}).get('parts', [])
-                    raw_answer = parts[0].get('text', '') if parts else ''
-                else:
-                    raw_answer = ''
-            
-            summary_answer, violations = sanitize_response(raw_answer)
-            if violations:
-                gaps.extend(violations)
-        
-        except Exception as e:
-            logging.exception("Answer generation failed")
-            gaps.append(f"Answer generation error: {str(e)[:100]}")
-            summary_answer = f"Could not generate answer. Retrieved {len(contexts)} contexts for manual review."
-    
-    # 5. Calculate confidence
-    if contexts:
-        distances = [c.distance for c in contexts if c.distance is not None]
-        # Distance is 0 = perfect match, 1 = no match, so convert to score
-        scores = [1.0 - d for d in distances] if distances else [0.5]
-        avg_score = sum(scores) / len(scores)
-    else:
-        avg_score = 0.0
-    
-    confidence = ConfidenceReport(
-        overall_score=round(avg_score, 3),
-        gaps_identified=gaps,
-        ambiguities=[],
-        human_judgment_required_for=["Low confidence answer"] if avg_score < 0.6 else []
-    )
-    
-    return VertexRagResponse(
-        session_id=session_id,
-        query=body.query,
-        summary_answer=summary_answer,
-        contexts=contexts,
-        confidence=confidence
-    )
+    logging.info('rag-query-corpus endpoint called but is disabled in local-first mode')
+    raise HTTPException(status_code=501, detail='Vertex RAG corpus endpoint is disabled in local-first mode. Use /rag-query or an adapter-backed RAG implementation.')
 
 
 # Simple chat endpoint that uses text search (no embeddings required)

@@ -24,15 +24,19 @@ DB_USER = os.environ.get('DB_USER', 'postgres')
 DB_NAME = os.environ.get('DB_NAME', 'docintel_db')
 DB_PASSWORD = os.environ.get('DB_PASSWORD')
 
-if not DB_PASSWORD:
-    logging.error('DB_PASSWORD not set in environment. Provide password or run via Cloud SQL Auth Proxy.')
+def get_db_password() -> str:
+    env_pw = os.environ.get('DB_PASSWORD')
+    if env_pw:
+        return env_pw
+    logging.error('DB password not found. Set DB_PASSWORD in the environment.')
     sys.exit(1)
 
 import psycopg2
 
 
 def connect():
-    return psycopg2.connect(host=DB_HOST, user=DB_USER, password=DB_PASSWORD, dbname=DB_NAME)
+    pw = get_db_password()
+    return psycopg2.connect(host=DB_HOST, user=DB_USER, password=pw, dbname=DB_NAME)
 
 
 def chunked(iterable, n):

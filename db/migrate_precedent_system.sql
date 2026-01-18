@@ -20,6 +20,20 @@ ADD COLUMN IF NOT EXISTS resolution_notes TEXT,
 ADD COLUMN IF NOT EXISTS resolution_date TIMESTAMP WITH TIME ZONE,
 ADD COLUMN IF NOT EXISTS resolved_by_user_id VARCHAR(255);
 
+-- Compatibility columns: some earlier migrations and functions reference these names.
+-- Add them if they don't exist so legacy functions/indexes can be created safely.
+ALTER TABLE override_log
+ADD COLUMN IF NOT EXISTS override_reason TEXT;
+
+ALTER TABLE override_log
+ADD COLUMN IF NOT EXISTS user_id INT REFERENCES users(id);
+
+ALTER TABLE override_log
+ADD COLUMN IF NOT EXISTS user_department TEXT;
+
+ALTER TABLE override_log
+ADD COLUMN IF NOT EXISTS original_recommendation TEXT;
+
 -- ============================================================================
 -- STEP 3: Create indexes for precedent queries
 -- ============================================================================
@@ -30,8 +44,9 @@ WHERE is_resolved = TRUE;
 
 -- Index 2: Enable fuzzy text matching on override_reason
 -- This allows similarity(override_reason, query_text) > 0.7 to use index
+-- Trigram index for fuzzy matching on the human-written reason.
 CREATE INDEX IF NOT EXISTS idx_override_log_reason_trgm
-ON override_log USING GIST(override_reason gist_trgm_ops)
+ON override_log USING GIN(override_reason gin_trgm_ops)
 WHERE is_resolved = TRUE;
 
 -- Index 3: Find precedents by resolution date (temporal queries)

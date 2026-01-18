@@ -32,6 +32,13 @@ DB_USER = os.environ.get('DB_USER', 'postgres')
 DB_NAME = os.environ.get('DB_NAME', 'docintel_db')
 DB_PASSWORD = os.environ.get('DB_PASSWORD')
 
+def get_db_password() -> str:
+    env_pw = os.environ.get('DB_PASSWORD')
+    if env_pw:
+        return env_pw
+    logging.error('DB password not set. Set DB_PASSWORD in the environment to run DB-backed syncs.')
+    return None
+
 QDRANT_URL = os.environ.get('QDRANT_URL', 'http://localhost:6333')
 QDRANT_COLLECTION = os.environ.get('QDRANT_COLLECTION', 'documents')
 
@@ -207,11 +214,11 @@ def main():
     if psycopg2 is None:
         logging.error('psycopg2 not available; cannot run against DB')
         return
-    if not DB_PASSWORD:
-        logging.error('DB_PASSWORD not set; aborting')
+    pw = get_db_password()
+    if not pw:
         return
 
-    conn = psycopg2.connect(host=DB_HOST, user=DB_USER, password=DB_PASSWORD, dbname=DB_NAME)
+    conn = psycopg2.connect(host=DB_HOST, user=DB_USER, password=pw, dbname=DB_NAME)
     try:
         locked = acquire_advisory_lock(conn)
         if not locked:

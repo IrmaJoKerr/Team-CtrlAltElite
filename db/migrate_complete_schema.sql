@@ -71,7 +71,7 @@ CREATE TABLE IF NOT EXISTS documents (
     department_folder TEXT,
     chunk_index INT,
     chunk_content TEXT,
-    embedding_vector vector(768),
+    embedding_vector vector(1536),
     suggested_title TEXT,
     title_justification TEXT,
     suggested_department TEXT,

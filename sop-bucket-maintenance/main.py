@@ -3,10 +3,7 @@ import os
 import fcntl
 import logging
 from fastapi import FastAPI, Query
-try:
-    from google.cloud import storage
-except Exception:
-    storage = None
+# Use the storage adapter for provider-agnostic storage operations
 
 app = FastAPI()
 

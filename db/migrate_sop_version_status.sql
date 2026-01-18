@@ -24,15 +24,27 @@ BEGIN
 END $$;
 
 -- 2. Add SOP-level metadata to sops table (if not exists)
-ALTER TABLE sops
-ADD COLUMN IF NOT EXISTS current_active_version_id INT,
-ADD COLUMN IF NOT EXISTS sop_code VARCHAR(50),  -- e.g. "SOP-HR-001"
-ADD COLUMN IF NOT EXISTS title TEXT,
-ADD COLUMN IF NOT EXISTS description TEXT,
-ADD COLUMN IF NOT EXISTS category TEXT,
-ADD COLUMN IF NOT EXISTS last_reviewed_at TIMESTAMP WITH TIME ZONE,
-ADD COLUMN IF NOT EXISTS next_review_due TIMESTAMP WITH TIME ZONE,
-ADD COLUMN IF NOT EXISTS is_critical BOOLEAN DEFAULT FALSE;
+-- Ensure `sops` table exists (compatibility table for SOP metadata)
+CREATE TABLE IF NOT EXISTS sops (
+        sop_id SERIAL PRIMARY KEY,
+        sop_code VARCHAR(50),
+        title TEXT,
+        department TEXT,
+        category TEXT,
+        current_active_version_id INT,
+        last_reviewed_at TIMESTAMP WITH TIME ZONE,
+        next_review_due TIMESTAMP WITH TIME ZONE,
+        is_critical BOOLEAN DEFAULT FALSE,
+        created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+-- Ensure compatibility columns exist on `sop_versions` for older code that references `version_id`/`sop_id`.
+ALTER TABLE IF EXISTS sop_versions
+    ADD COLUMN IF NOT EXISTS version_id INT,
+    ADD COLUMN IF NOT EXISTS sop_id INT;
+
+-- Backfill `version_id` from the existing primary key `id` where present.
+UPDATE sop_versions SET version_id = id WHERE version_id IS NULL;
 
 -- 3. Create view for ACTIVE queryable versions only
 CREATE OR REPLACE VIEW active_sop_versions AS

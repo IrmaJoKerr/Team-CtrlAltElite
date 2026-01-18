@@ -19,7 +19,7 @@ DB_NAME = os.environ.get('DB_NAME', 'sop_database')
 DB_PASSWORD = os.environ.get('DB_PASSWORD')
 
 if not DB_PASSWORD:
-    logging.error("DB_PASSWORD not set in environment. Provide password or run via Cloud SQL Auth Proxy.")
+    logging.error("DB_PASSWORD not set in environment. Set DB_PASSWORD or configure an external secret source.")
     raise SystemExit(1)
 
 conn = psycopg2.connect(host=DB_HOST, user=DB_USER, password=DB_PASSWORD, dbname=DB_NAME)

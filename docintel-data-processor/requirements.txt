@@ -1,22 +1,18 @@
- fastapi
- uvicorn[standard]
- python-multipart
- pydantic>=2.0
- google-cloud-storage
- google-cloud-pubsub
-google-cloud-aiplatform>=1.40.0
- google-cloud-secret-manager
- psycopg2-binary # For PostgreSQL client
- pypdf # Or another PDF parsing library like pdfminer.six
- python-dotenv # For local development
- requests
- tenacity
- httpx
+fastapi
+uvicorn[standard]
+python-multipart
+pydantic>=2.0
+
+# Core DB + parsing
+psycopg2-binary  # PostgreSQL client
+pypdf  # Or another PDF parsing library like pdfminer.six
+python-dotenv  # For local development
+
+requests
+tenacity
+httpx
 sentence-transformers
-# Note: the 'vertex-ai' package is not published on PyPI in some environments.
-# Use 'google-cloud-aiplatform' or install the official GenAI client if required.
-google-genai>=0.7.0
- # Note: the 'vertex-ai' package is not published on PyPI in some environments.
- # Use 'google-cloud-aiplatform' or install the official GenAI client if required.
-# Note: the 'vertex-ai' package is not published on PyPI in some environments.
-# Use 'google-cloud-aiplatform' or install the official GenAI client if required.
+
+# Provider-agnostic note: adapter patterns are used for storage, embeddings,
+# and model providers. Add provider SDKs here only if you need a specific
+# hosted integration (e.g., AWS, Azure, or a vendor SDK).

@@ -1,10 +1,10 @@
 # DocIntel Ingestion Service
 
-Simple FastAPI service that accepts SOP document uploads and saves them to a Google Cloud Storage bucket.
+Simple FastAPI service that accepts SOP document uploads and saves them using the configured storage adapter (local filesystem by default).
 
 Environment
-- `BUCKET_NAME` - GCS bucket to upload files to (default: `ambuckethack`).
-- Google Cloud credentials: set `GOOGLE_APPLICATION_CREDENTIALS` to a service account JSON, or rely on VM/workload identity.
+- `BUCKET_NAME` / `STORAGE_ROOT` - storage prefix or local root for uploaded files.
+- The service prefers `DB_PASSWORD` and `STORAGE_ROOT` for local-first development. If you need a hosted provider, configure a storage adapter and provider credentials as required.
 
 Run locally
 
@@ -24,8 +24,8 @@ Build Docker image
 
 ```bash
 docker build -t docintel-ingestion:latest .
-docker run -e BUCKET_NAME=ambuckethack -e GOOGLE_APPLICATION_CREDENTIALS=/secrets/sa.json -p 8080:8080 docintel-ingestion:latest
+docker run -e STORAGE_ROOT=/data/uploads -p 8080:8080 docintel-ingestion:latest
 ```
 
 Endpoint
-- `POST /upload` - form file field `file` (accepts `.pdf` and `.txt`). Returns `gs://...` URI on success.
+- `POST /upload` - form file field `file` (accepts `.pdf` and `.txt`). Returns storage path on success.

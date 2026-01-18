@@ -1,8 +1,11 @@
+
 functions-framework
-cloud-sql-python-connector
 pg8000
-google-cloud-aiplatform>=1.40.0
-google-genai>=0.7.0
+
+# Provider-agnostic: remove cloud-specific connectors. If you need a hosted
+# SQL connector or model SDK, add it here for your deployment target.
+
+
 
 
 
