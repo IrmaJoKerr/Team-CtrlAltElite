@@ -4,6 +4,7 @@ This stub attempts a local-friendly lookup for secrets when running in
 cloud mode during development. It does NOT call GCP APIs. Replace with
 an implementation that uses `google-cloud-secret-manager` for real use.
 """
+
 from __future__ import annotations
 
 import os
@@ -30,11 +31,11 @@ class GoogleSecretsAdapter:
         if val:
             return val
         # provider-prefixed fallbacks
-        for prefix in ('GCP_', 'GOOGLE_'):
-            val = os.environ.get(f'{prefix}{name}')
+        for prefix in ("GCP_", "GOOGLE_"):
+            val = os.environ.get(f"{prefix}{name}")
             if val:
                 return val
-        logger.debug('GoogleSecretsAdapter: secret %s not found in env', name)
+        logger.debug("GoogleSecretsAdapter: secret %s not found in env", name)
         return None
 
 

@@ -1,6 +1,7 @@
 import asyncio
 from typing import List
 
+
 async def get_text_embeddings(texts: List[str]) -> List[List[float]]:
     """Async wrapper around the embedding adapter's sync API.
 
@@ -10,7 +11,9 @@ async def get_text_embeddings(texts: List[str]) -> List[List[float]]:
     try:
         from adapters.embedding_adapter import get_embeddings as _adapter_get_embeddings
     except Exception as e:
-        raise RuntimeError('No embedding adapter available. Implement adapters.embedding_adapter.get_embeddings') from e
+        raise RuntimeError(
+            "No embedding adapter available. Implement adapters.embedding_adapter.get_embeddings"
+        ) from e
 
     # Run adapter in a thread to avoid blocking the event loop if adapter is sync
     try:

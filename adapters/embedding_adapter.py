@@ -9,6 +9,7 @@ Usage:
 
 This file keeps a small, well-documented surface so switching providers is a config change.
 """
+
 from typing import List
 import os
 import hashlib
@@ -61,11 +62,15 @@ class HostedEmbedder:
         self.endpoint = os.environ.get("HOSTED_EMBEDDING_ENDPOINT")
         self.api_key = os.environ.get("HOSTED_EMBEDDING_API_KEY")
         if not self.endpoint or not self.api_key:
-            raise RuntimeError("Hosted embedding provider not configured. Set HOSTED_EMBEDDING_ENDPOINT and HOSTED_EMBEDDING_API_KEY")
+            raise RuntimeError(
+                "Hosted embedding provider not configured. Set HOSTED_EMBEDDING_ENDPOINT and HOSTED_EMBEDDING_API_KEY"
+            )
 
     def encode(self, texts: List[str]) -> List[List[float]]:
         # Minimal scaffold: implement actual HTTP calls with batching and retries.
-        raise NotImplementedError("Hosted embedder not implemented; implement provider call here")
+        raise NotImplementedError(
+            "Hosted embedder not implemented; implement provider call here"
+        )
 
 
 def _select_embedder():

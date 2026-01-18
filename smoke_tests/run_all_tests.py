@@ -5,6 +5,7 @@ This runner executes the existing test scripts under `smoke_tests/`, captures
 their stdout/stderr into `smoke_tests/outputs/`, and writes a summary to
 `smoke_tests/report.txt`.
 """
+
 import subprocess
 import time
 import os
@@ -16,8 +17,11 @@ OUT_DIR.mkdir(parents=True, exist_ok=True)
 REPORT_PATH = ROOT / "report.txt"
 
 TESTS = [
-    ("smoke_test_embedding_and_gen.py", "Smoke: Embedding & Generative unit test (mocked)"),
-    ("stress_endpoints.py", "Stress: endpoints stress test (mocked)")
+    (
+        "smoke_test_embedding_and_gen.py",
+        "Smoke: Embedding & Generative unit test (mocked)",
+    ),
+    ("stress_endpoints.py", "Stress: endpoints stress test (mocked)"),
 ]
 
 results = []
@@ -40,14 +44,34 @@ for script, desc in TESTS:
             fh.write(proc.stdout)
         passed = proc.returncode == 0
         sample = "\n".join(proc.stdout.splitlines()[-20:])
-        results.append({"script": script, "desc": desc, "passed": passed, "returncode": proc.returncode, "duration": duration, "log": str(out_file), "sample_tail": sample})
+        results.append(
+            {
+                "script": script,
+                "desc": desc,
+                "passed": passed,
+                "returncode": proc.returncode,
+                "duration": duration,
+                "log": str(out_file),
+                "sample_tail": sample,
+            }
+        )
         print(f"Completed {script}: returncode={proc.returncode} time={duration:.2f}s")
     except subprocess.TimeoutExpired as e:
         duration = time.time() - start
         msg = f"Test timed out after {duration:.1f}s"
         with open(out_file, "w", encoding="utf-8") as fh:
             fh.write(msg + "\n")
-        results.append({"script": script, "desc": desc, "passed": False, "returncode": -1, "duration": duration, "log": str(out_file), "sample_tail": msg})
+        results.append(
+            {
+                "script": script,
+                "desc": desc,
+                "passed": False,
+                "returncode": -1,
+                "duration": duration,
+                "log": str(out_file),
+                "sample_tail": msg,
+            }
+        )
         print(msg)
 
 # Write consolidated report
@@ -62,7 +86,7 @@ with open(REPORT_PATH, "w", encoding="utf-8") as rfh:
         rfh.write(f"  Duration: {res['duration']:.2f}s\n")
         rfh.write(f"  Log: {res['log']}\n")
         rfh.write("  Sample tail:\n")
-        for line in (res['sample_tail'] or '').splitlines():
+        for line in (res["sample_tail"] or "").splitlines():
             rfh.write("    " + line + "\n")
         rfh.write("\n")
 

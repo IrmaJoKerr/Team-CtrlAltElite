@@ -4,6 +4,7 @@ This stub does not call AWS SDKs. It provides a developer-friendly
 fallback that reads environment variables. Replace with a real
 `boto3`-backed implementation for production.
 """
+
 from __future__ import annotations
 
 import os
@@ -28,11 +29,11 @@ class AWSSecretsAdapter:
         val = os.environ.get(name)
         if val:
             return val
-        for prefix in ('AWS_', 'AWS_SECRET_'):
-            val = os.environ.get(f'{prefix}{name}')
+        for prefix in ("AWS_", "AWS_SECRET_"):
+            val = os.environ.get(f"{prefix}{name}")
             if val:
                 return val
-        logger.debug('AWSSecretsAdapter: secret %s not found in env', name)
+        logger.debug("AWSSecretsAdapter: secret %s not found in env", name)
         return None
 
 

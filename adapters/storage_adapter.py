@@ -20,7 +20,9 @@ class LocalStorageAdapter:
         p.parent.mkdir(parents=True, exist_ok=True)
         return str(p)
 
-    def upload_bytes(self, object_name: str, data: bytes, content_type: Optional[str] = None) -> str:
+    def upload_bytes(
+        self, object_name: str, data: bytes, content_type: Optional[str] = None
+    ) -> str:
         """Write bytes to local storage and return a file URI.
 
         Returns: file:// absolute path
@@ -35,6 +37,7 @@ class LocalStorageAdapter:
         path = self._abs_path(object_name)
         with open(path, "w", encoding="utf-8") as f:
             import json
+
             json.dump(obj, f, ensure_ascii=False, indent=2)
         return f"file://{os.path.abspath(path)}"
 
@@ -53,7 +56,7 @@ class LocalStorageAdapter:
         if not base.exists():
             return []
         results = []
-        for p in base.rglob('*'):
+        for p in base.rglob("*"):
             if p.is_file():
                 rel = p.relative_to(base).as_posix()
                 if prefix:
@@ -114,7 +117,7 @@ class LocalStorageAdapter:
         temp_path = dest_path.parent / temp_name
         try:
             # Stream-copy src -> temp
-            with open(src_path, 'rb') as r, open(temp_path, 'wb') as w:
+            with open(src_path, "rb") as r, open(temp_path, "wb") as w:
                 shutil.copyfileobj(r, w, length=16 * 1024)
                 w.flush()
                 try:

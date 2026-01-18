@@ -14,7 +14,11 @@ def _env_truthy(env: Mapping[str, str], key: str) -> bool:
     return str(v).lower() in ("1", "true", "yes", "on")
 
 
-def detect_cloud_mode(argv: Iterable[str] = None, env: Mapping[str, str] = None, globs: MutableMapping[str, Any] = None) -> Tuple[bool, str]:
+def detect_cloud_mode(
+    argv: Iterable[str] = None,
+    env: Mapping[str, str] = None,
+    globs: MutableMapping[str, Any] = None,
+) -> Tuple[bool, str]:
     """Detect whether the process should run in cloud mode.
 
     Precedence (highest -> lowest):
@@ -35,19 +39,24 @@ def detect_cloud_mode(argv: Iterable[str] = None, env: Mapping[str, str] = None,
 
     # 1. CLI detection
     argstr = _arglist_to_str(argv)
-    if '--cloud-mode' in argstr or 'cloudmode' in argstr or '--mode=cloud' in argstr or 'cloud-mode' in argstr:
-        return True, 'cli'
+    if (
+        "--cloud-mode" in argstr
+        or "cloudmode" in argstr
+        or "--mode=cloud" in argstr
+        or "cloud-mode" in argstr
+    ):
+        return True, "cli"
 
     # 2. Env var
-    if _env_truthy(env, 'CLOUD_MODE'):
-        return True, 'env'
+    if _env_truthy(env, "CLOUD_MODE"):
+        return True, "env"
 
     # 3. Global
     try:
-        gval = globs.get('CLOUD_MODE')
+        gval = globs.get("CLOUD_MODE")
         if gval:
-            return True, 'global'
+            return True, "global"
     except Exception:
         pass
 
-    return False, 'default'
+    return False, "default"

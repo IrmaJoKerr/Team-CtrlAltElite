@@ -1,0 +1,46 @@
+Test run report
+=================
+
+smoke_test_embedding_and_gen.py: Smoke: Embedding & Generative unit test (mocked)
+  Status: PASS
+  Return code: 0
+  Duration: 0.41s
+  Log: /home/bleow/Desktop/AmbankHackathon2026/smoke_tests/outputs/smoke_test_embedding_and_gen.py.log
+  Sample tail:
+    INFO:root:Generative metadata suggestions are disabled in local-first mode; returning defaults
+    INFO:root:Generative metadata suggestions are disabled in local-first mode; returning defaults
+    INFO:root:Generative metadata suggestions are disabled in local-first mode; returning defaults
+    Generative success for text='GEN_NORMAL: simple document text': {'title': {'suggested_value': None, 'justification': 'Generative features disabled.', 'confidence_score': 0.0}, 'department': {'suggested_value': None, 'justification': 'Generative features disabled.', 'confidence_score': 0.0}, 'process_type': {'suggested_value': None, 'justification': 'Generative features disabled.', 'confidence_score': 0.0}, 'status': {'suggested_value': None, 'justification': 'Generative features disabled.', 'confidence_score': 0.0}}
+    Generative success for text='GEN_TIMEOUT_ONCE: TIMEOUT_ONCE_GEN RETUR': {'title': {'suggested_value': None, 'justification': 'Generative features disabled.', 'confidence_score': 0.0}, 'department': {'suggested_value': None, 'justification': 'Generative features disabled.', 'confidence_score': 0.0}, 'process_type': {'suggested_value': None, 'justification': 'Generative features disabled.', 'confidence_score': 0.0}, 'status': {'suggested_value': None, 'justification': 'Generative features disabled.', 'confidence_score': 0.0}}
+    Generative success for text='GEN_TIMEOUT_ALWAYS: TIMEOUT_ALWAYS_GEN R': {'title': {'suggested_value': None, 'justification': 'Generative features disabled.', 'confidence_score': 0.0}, 'department': {'suggested_value': None, 'justification': 'Generative features disabled.', 'confidence_score': 0.0}, 'process_type': {'suggested_value': None, 'justification': 'Generative features disabled.', 'confidence_score': 0.0}, 'status': {'suggested_value': None, 'justification': 'Generative features disabled.', 'confidence_score': 0.0}}
+    Embedding success for texts=['EMB_NORMAL: Hello world']: vectors_count=1
+    Embedding success for texts=['EMB_TIMEOUT_ONCE: TIMEOUT_ONCE_EMB']: vectors_count=1
+    Embedding success for texts=['EMB_TIMEOUT_ALWAYS: TIMEOUT_ALWAYS_EMB']: vectors_count=1
+
+stress_endpoints.py: Stress: endpoints stress test (mocked)
+  Status: PASS
+  Return code: 0
+  Duration: 0.51s
+  Log: /home/bleow/Desktop/AmbankHackathon2026/smoke_tests/outputs/stress_endpoints.py.log
+  Sample tail:
+    (2, 200, {'answer': 'TEST_MODE answer: found 1 documents. Top: Updated SOP Title', 'sources': [{'path': 'local_test_store/versions/operations_example.pdf/v2.json', 'snippet': 'Updated SOP Title'}]})
+    (7, 200, {'answer': 'TEST_MODE answer: found 1 documents. Top: Updated SOP Title', 'sources': [{'path': 'local_test_store/versions/operations_example.pdf/v2.json', 'snippet': 'Updated SOP Title'}]})
+    (4, 200, {'answer': 'TEST_MODE answer: found 1 documents. Top: Updated SOP Title', 'sources': [{'path': 'local_test_store/versions/operations_example.pdf/v2.json', 'snippet': 'Updated SOP Title'}]})
+    (8, 200, {'answer': 'TEST_MODE answer: found 1 documents. Top: Updated SOP Title', 'sources': [{'path': 'local_test_store/versions/operations_example.pdf/v2.json', 'snippet': 'Updated SOP Title'}]})
+    (11, 200, {'answer': 'TEST_MODE answer: found 1 documents. Top: Updated SOP Title', 'sources': [{'path': 'local_test_store/versions/operations_example.pdf/v2.json', 'snippet': 'Updated SOP Title'}]})
+    (6, 200, {'answer': 'TEST_MODE answer: found 1 documents. Top: Updated SOP Title', 'sources': [{'path': 'local_test_store/versions/operations_example.pdf/v2.json', 'snippet': 'Updated SOP Title'}]})
+    RAG total 40 elapsed 0.11658549308776855
+    PROCESS results:
+    (3, 200, {'status': 'success', 'original_file': 'testfile.txt', 'new_path': 'operations/testfile.txt', 'chunks_processed': 1})
+    (1, 200, {'status': 'success', 'original_file': 'testfile.txt', 'new_path': 'operations/testfile.txt', 'chunks_processed': 1})
+    (0, 200, {'status': 'success', 'original_file': 'testfile.txt', 'new_path': 'operations/testfile.txt', 'chunks_processed': 1})
+    (7, 200, {'status': 'success', 'original_file': 'testfile.txt', 'new_path': 'operations/testfile.txt', 'chunks_processed': 1})
+    (8, 200, {'status': 'success', 'original_file': 'testfile.txt', 'new_path': 'operations/testfile.txt', 'chunks_processed': 1})
+    (4, 200, {'status': 'success', 'original_file': 'testfile.txt', 'new_path': 'operations/testfile.txt', 'chunks_processed': 1})
+    (6, 200, {'status': 'success', 'original_file': 'testfile.txt', 'new_path': 'operations/testfile.txt', 'chunks_processed': 1})
+    (5, 200, {'status': 'success', 'original_file': 'testfile.txt', 'new_path': 'operations/testfile.txt', 'chunks_processed': 1})
+    (2, 200, {'status': 'success', 'original_file': 'testfile.txt', 'new_path': 'operations/testfile.txt', 'chunks_processed': 1})
+    (9, 200, {'status': 'success', 'original_file': 'testfile.txt', 'new_path': 'operations/testfile.txt', 'chunks_processed': 1})
+    PROCESS total 10 elapsed 0.03534555435180664
+    Stress test complete
+

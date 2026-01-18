@@ -9,6 +9,7 @@ Usage:
     from adapters.secrets_adapter import get_db_password
     pw = get_db_password(cloud_mode=True, secret_name='projects/.../secrets/DB_PASSWORD')
 """
+
 from __future__ import annotations
 
 import os
@@ -20,9 +21,12 @@ logger = logging.getLogger(__name__)
 
 # Registry of providers is maintained in adapters.providers.registry
 try:
-    from adapters.providers.registry import SUPPORTED_PROVIDERS, get_adapter as registry_get_adapter
+    from adapters.providers.registry import (
+        SUPPORTED_PROVIDERS,
+        get_adapter as registry_get_adapter,
+    )
 except Exception:
-    SUPPORTED_PROVIDERS = ['google', 'aws']
+    SUPPORTED_PROVIDERS = ["google", "aws"]
     registry_get_adapter = None
 
 
@@ -52,7 +56,9 @@ class StubCloudSecretsAdapter(SecretsAdapter):
         )
 
 
-def get_secrets_adapter(cloud_mode: bool = False, config: Optional[object] = None) -> SecretsAdapter:
+def get_secrets_adapter(
+    cloud_mode: bool = False, config: Optional[object] = None
+) -> SecretsAdapter:
     """Return an appropriate `SecretsAdapter`.
 
     - If `cloud_mode` is False: return `EnvSecretsAdapter` (local-first).
@@ -64,21 +70,25 @@ def get_secrets_adapter(cloud_mode: bool = False, config: Optional[object] = Non
     # Precedence: explicit config.secret_provider -> env SECRET_PROVIDER -> error
     provider = None
     source = None
-    if config is not None and getattr(config, 'secret_provider', None):
-        provider = getattr(config, 'secret_provider')
-        source = 'config'
-    elif os.environ.get('SECRET_PROVIDER'):
-        provider = os.environ.get('SECRET_PROVIDER')
-        source = 'env'
+    if config is not None and getattr(config, "secret_provider", None):
+        provider = getattr(config, "secret_provider")
+        source = "config"
+    elif os.environ.get("SECRET_PROVIDER"):
+        provider = os.environ.get("SECRET_PROVIDER")
+        source = "env"
 
     if not provider:
-        raise RuntimeError('Cloud mode selected but no secret provider configured. Set --secret-provider or SECRET_PROVIDER env var.')
+        raise RuntimeError(
+            "Cloud mode selected but no secret provider configured. Set --secret-provider or SECRET_PROVIDER env var."
+        )
 
     provider = provider.lower()
     if provider not in SUPPORTED_PROVIDERS:
-        raise RuntimeError(f'Unsupported secret provider "{provider}". Supported: {SUPPORTED_PROVIDERS}')
+        raise RuntimeError(
+            f'Unsupported secret provider "{provider}". Supported: {SUPPORTED_PROVIDERS}'
+        )
 
-    logger.info('Using secret provider %s (source=%s)', provider, source)
+    logger.info("Using secret provider %s (source=%s)", provider, source)
 
     # Try to obtain a provider-specific adapter via the registry if present
     if registry_get_adapter is not None:
@@ -89,7 +99,11 @@ def get_secrets_adapter(cloud_mode: bool = False, config: Optional[object] = Non
     return StubCloudSecretsAdapter(provider=provider)
 
 
-def get_db_password(cloud_mode: bool = False, secret_name: Optional[str] = None, config: Optional[object] = None) -> str:
+def get_db_password(
+    cloud_mode: bool = False,
+    secret_name: Optional[str] = None,
+    config: Optional[object] = None,
+) -> str:
     """Return DB password according to local-first rules.
 
     Precedence:
@@ -99,12 +113,12 @@ def get_db_password(cloud_mode: bool = False, secret_name: Optional[str] = None,
        that adapter.
     3. Raise RuntimeError if not available.
     """
-    env_pw = os.environ.get('DB_PASSWORD')
+    env_pw = os.environ.get("DB_PASSWORD")
     if env_pw:
         return env_pw
 
     adapter = get_secrets_adapter(cloud_mode=cloud_mode, config=config)
-    lookup_name = secret_name or 'DB_PASSWORD'
+    lookup_name = secret_name or "DB_PASSWORD"
     try:
         val = adapter.get(lookup_name)
     except NotImplementedError:
@@ -114,5 +128,5 @@ def get_db_password(cloud_mode: bool = False, secret_name: Optional[str] = None,
         return val
 
     raise RuntimeError(
-        'DB password not found. Set DB_PASSWORD env var or implement a cloud secrets adapter.'
+        "DB password not found. Set DB_PASSWORD env var or implement a cloud secrets adapter."
     )

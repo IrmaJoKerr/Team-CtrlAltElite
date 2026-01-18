@@ -6,6 +6,7 @@ via the environment variable `DB_PASSWORD`, then run:
 
 python scripts/backfill_embeddings.py
 """
+
 import os
 import json
 import logging
@@ -13,9 +14,11 @@ import psycopg2
 
 logging.basicConfig(level=logging.INFO)
 
-DB_HOST = os.environ.get('DB_HOST')
-DB_USER = os.environ.get('DB_USER', 'sop_user')
-DB_NAME = os.environ.get('DB_NAME', 'sop_database')
+DB_HOST = os.environ.get("DB_HOST")
+DB_USER = os.environ.get("DB_USER", "sop_user")
+DB_NAME = os.environ.get("DB_NAME", "sop_database")
+
+
 def main():
     from utils.cli import build_parser, get_effective_config
 
@@ -26,9 +29,12 @@ def main():
     # Establish DB connection using secrets adapter when needed
     try:
         from adapters.secrets_adapter import get_db_password
+
         pw = get_db_password(cloud_mode=cfg.cloud_mode, config=cfg)
     except Exception:
-        logging.error("DB password not available; set DB_PASSWORD or configure secret provider.")
+        logging.error(
+            "DB password not available; set DB_PASSWORD or configure secret provider."
+        )
         raise SystemExit(1)
 
     conn = psycopg2.connect(host=DB_HOST, user=DB_USER, password=pw, dbname=DB_NAME)
@@ -36,7 +42,9 @@ def main():
 
     # Select rows that have the old embedding column populated (if still present)
     try:
-        cursor.execute("SELECT id, embedding FROM documents WHERE embedding IS NOT NULL")
+        cursor.execute(
+            "SELECT id, embedding FROM documents WHERE embedding IS NOT NULL"
+        )
     except Exception:
         logging.info("No old 'embedding' column or no rows to backfill. Exiting.")
         cursor.close()
@@ -53,16 +61,21 @@ def main():
             if not isinstance(vect, list):
                 logging.warning(f"Row {doc_id}: embedding not a list; skipping.")
                 continue
-            emb_str = '[' + ','.join(map(str, vect)) + ']'
-            cursor.execute("UPDATE documents SET embedding_vector = %s::vector, embedding = NULL WHERE id = %s", (emb_str, doc_id))
+            emb_str = "[" + ",".join(map(str, vect)) + "]"
+            cursor.execute(
+                "UPDATE documents SET embedding_vector = %s::vector, embedding = NULL WHERE id = %s",
+                (emb_str, doc_id),
+            )
         except Exception as e:
             logging.error(f"Failed to backfill row {doc_id}: {e}")
 
     conn.commit()
     cursor.close()
     conn.close()
-    logging.info("Backfill completed. Run ANALYZE on the table and then recreate ivfflat index if desired.")
+    logging.info(
+        "Backfill completed. Run ANALYZE on the table and then recreate ivfflat index if desired."
+    )
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     main()

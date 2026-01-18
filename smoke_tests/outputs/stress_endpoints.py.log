@@ -1,0 +1,127 @@
+INFO:httpx:HTTP Request: POST http://testserver/rag-query "HTTP/1.1 200 OK"
+INFO:httpx:HTTP Request: POST http://testserver/rag-query "HTTP/1.1 200 OK"
+INFO:httpx:HTTP Request: POST http://testserver/rag-query "HTTP/1.1 200 OK"
+INFO:httpx:HTTP Request: POST http://testserver/rag-query "HTTP/1.1 200 OK"
+INFO:httpx:HTTP Request: POST http://testserver/rag-query "HTTP/1.1 200 OK"
+INFO:httpx:HTTP Request: POST http://testserver/rag-query "HTTP/1.1 200 OK"
+INFO:httpx:HTTP Request: POST http://testserver/rag-query "HTTP/1.1 200 OK"
+INFO:httpx:HTTP Request: POST http://testserver/rag-query "HTTP/1.1 200 OK"
+INFO:httpx:HTTP Request: POST http://testserver/rag-query "HTTP/1.1 200 OK"
+INFO:httpx:HTTP Request: POST http://testserver/rag-query "HTTP/1.1 200 OK"
+INFO:httpx:HTTP Request: POST http://testserver/rag-query "HTTP/1.1 200 OK"
+INFO:httpx:HTTP Request: POST http://testserver/rag-query "HTTP/1.1 200 OK"
+INFO:httpx:HTTP Request: POST http://testserver/rag-query "HTTP/1.1 200 OK"
+INFO:httpx:HTTP Request: POST http://testserver/rag-query "HTTP/1.1 200 OK"
+INFO:httpx:HTTP Request: POST http://testserver/rag-query "HTTP/1.1 200 OK"
+INFO:httpx:HTTP Request: POST http://testserver/rag-query "HTTP/1.1 200 OK"
+INFO:httpx:HTTP Request: POST http://testserver/rag-query "HTTP/1.1 200 OK"
+INFO:httpx:HTTP Request: POST http://testserver/rag-query "HTTP/1.1 200 OK"
+INFO:httpx:HTTP Request: POST http://testserver/rag-query "HTTP/1.1 200 OK"
+INFO:httpx:HTTP Request: POST http://testserver/rag-query "HTTP/1.1 200 OK"
+INFO:httpx:HTTP Request: POST http://testserver/rag-query "HTTP/1.1 200 OK"
+INFO:httpx:HTTP Request: POST http://testserver/rag-query "HTTP/1.1 200 OK"
+INFO:httpx:HTTP Request: POST http://testserver/rag-query "HTTP/1.1 200 OK"
+INFO:httpx:HTTP Request: POST http://testserver/rag-query "HTTP/1.1 200 OK"
+INFO:httpx:HTTP Request: POST http://testserver/rag-query "HTTP/1.1 200 OK"
+INFO:httpx:HTTP Request: POST http://testserver/rag-query "HTTP/1.1 200 OK"
+INFO:httpx:HTTP Request: POST http://testserver/rag-query "HTTP/1.1 200 OK"
+INFO:httpx:HTTP Request: POST http://testserver/rag-query "HTTP/1.1 200 OK"
+INFO:httpx:HTTP Request: POST http://testserver/rag-query "HTTP/1.1 200 OK"
+INFO:httpx:HTTP Request: POST http://testserver/rag-query "HTTP/1.1 200 OK"
+INFO:httpx:HTTP Request: POST http://testserver/rag-query "HTTP/1.1 200 OK"
+INFO:httpx:HTTP Request: POST http://testserver/rag-query "HTTP/1.1 200 OK"
+INFO:httpx:HTTP Request: POST http://testserver/rag-query "HTTP/1.1 200 OK"
+INFO:httpx:HTTP Request: POST http://testserver/rag-query "HTTP/1.1 200 OK"
+INFO:httpx:HTTP Request: POST http://testserver/rag-query "HTTP/1.1 200 OK"
+INFO:httpx:HTTP Request: POST http://testserver/rag-query "HTTP/1.1 200 OK"
+INFO:httpx:HTTP Request: POST http://testserver/rag-query "HTTP/1.1 200 OK"
+INFO:httpx:HTTP Request: POST http://testserver/rag-query "HTTP/1.1 200 OK"
+INFO:httpx:HTTP Request: POST http://testserver/rag-query "HTTP/1.1 200 OK"
+INFO:httpx:HTTP Request: POST http://testserver/rag-query "HTTP/1.1 200 OK"
+INFO:root:Received Pub/Sub message...
+INFO:root:Processing file: testfile.txt from bucket: mock-bucket
+INFO:root:Moving GCS object from testfile.txt to operations/testfile.txt
+INFO:root:Successfully moved testfile.txt to operations/testfile.txt
+INFO:root:Received Pub/Sub message...
+INFO:root:Processing file: testfile.txt from bucket: mock-bucket
+INFO:root:Moving GCS object from testfile.txt to operations/testfile.txt
+INFO:root:Successfully moved testfile.txt to operations/testfile.txt
+INFO:root:Received Pub/Sub message...
+INFO:root:Processing file: testfile.txt from bucket: mock-bucket
+INFO:root:Moving GCS object from testfile.txt to operations/testfile.txt
+INFO:root:Successfully moved testfile.txt to operations/testfile.txt
+INFO:root:Received Pub/Sub message...
+INFO:root:Processing file: testfile.txt from bucket: mock-bucket
+INFO:root:Moving GCS object from testfile.txt to operations/testfile.txt
+INFO:root:Successfully moved testfile.txt to operations/testfile.txt
+INFO:root:Received Pub/Sub message...
+INFO:root:Processing file: testfile.txt from bucket: mock-bucket
+INFO:root:Moving GCS object from testfile.txt to operations/testfile.txt
+INFO:root:Successfully moved testfile.txt to operations/testfile.txt
+INFO:root:Received Pub/Sub message...
+INFO:root:Processing file: testfile.txt from bucket: mock-bucket
+INFO:root:Moving GCS object from testfile.txt to operations/testfile.txt
+INFO:root:Successfully moved testfile.txt to operations/testfile.txt
+INFO:root:Received Pub/Sub message...
+INFO:root:Processing file: testfile.txt from bucket: mock-bucket
+INFO:root:Moving GCS object from testfile.txt to operations/testfile.txt
+INFO:root:Successfully moved testfile.txt to operations/testfile.txt
+INFO:root:Received Pub/Sub message...
+INFO:root:Processing file: testfile.txt from bucket: mock-bucket
+INFO:root:Moving GCS object from testfile.txt to operations/testfile.txt
+INFO:root:Successfully moved testfile.txt to operations/testfile.txt
+INFO:root:Received Pub/Sub message...
+INFO:root:Processing file: testfile.txt from bucket: mock-bucket
+INFO:root:Moving GCS object from testfile.txt to operations/testfile.txt
+INFO:root:Successfully moved testfile.txt to operations/testfile.txt
+INFO:root:Received Pub/Sub message...
+INFO:root:Processing file: testfile.txt from bucket: mock-bucket
+INFO:root:Moving GCS object from testfile.txt to operations/testfile.txt
+INFO:root:Successfully moved testfile.txt to operations/testfile.txt
+INFO:root:Successfully processed and stored 1 chunks for testfile.txt
+INFO:root:Successfully processed and stored 1 chunks for testfile.txt
+INFO:root:Successfully processed and stored 1 chunks for testfile.txt
+INFO:root:Successfully processed and stored 1 chunks for testfile.txt
+INFO:httpx:HTTP Request: POST http://testserver/process-document "HTTP/1.1 200 OK"
+INFO:httpx:HTTP Request: POST http://testserver/process-document "HTTP/1.1 200 OK"
+INFO:root:Successfully processed and stored 1 chunks for testfile.txt
+INFO:root:Successfully processed and stored 1 chunks for testfile.txt
+INFO:httpx:HTTP Request: POST http://testserver/process-document "HTTP/1.1 200 OK"
+INFO:httpx:HTTP Request: POST http://testserver/process-document "HTTP/1.1 200 OK"
+INFO:root:Successfully processed and stored 1 chunks for testfile.txt
+INFO:root:Successfully processed and stored 1 chunks for testfile.txt
+INFO:httpx:HTTP Request: POST http://testserver/process-document "HTTP/1.1 200 OK"
+INFO:root:Successfully processed and stored 1 chunks for testfile.txt
+INFO:root:Successfully processed and stored 1 chunks for testfile.txt
+INFO:httpx:HTTP Request: POST http://testserver/process-document "HTTP/1.1 200 OK"
+INFO:httpx:HTTP Request: POST http://testserver/process-document "HTTP/1.1 200 OK"
+INFO:httpx:HTTP Request: POST http://testserver/process-document "HTTP/1.1 200 OK"
+INFO:httpx:HTTP Request: POST http://testserver/process-document "HTTP/1.1 200 OK"
+INFO:httpx:HTTP Request: POST http://testserver/process-document "HTTP/1.1 200 OK"
+Starting stress test: rag-query 40 concurrent requests
+Starting process-document stress test 10 concurrent requests
+RAG results sample (first 10):
+(1, 200, {'answer': 'TEST_MODE answer: found 1 documents. Top: Updated SOP Title', 'sources': [{'path': 'local_test_store/versions/operations_example.pdf/v2.json', 'snippet': 'Updated SOP Title'}]})
+(0, 200, {'answer': 'TEST_MODE answer: found 1 documents. Top: Updated SOP Title', 'sources': [{'path': 'local_test_store/versions/operations_example.pdf/v2.json', 'snippet': 'Updated SOP Title'}]})
+(5, 200, {'answer': 'TEST_MODE answer: found 1 documents. Top: Updated SOP Title', 'sources': [{'path': 'local_test_store/versions/operations_example.pdf/v2.json', 'snippet': 'Updated SOP Title'}]})
+(3, 200, {'answer': 'TEST_MODE answer: found 1 documents. Top: Updated SOP Title', 'sources': [{'path': 'local_test_store/versions/operations_example.pdf/v2.json', 'snippet': 'Updated SOP Title'}]})
+(2, 200, {'answer': 'TEST_MODE answer: found 1 documents. Top: Updated SOP Title', 'sources': [{'path': 'local_test_store/versions/operations_example.pdf/v2.json', 'snippet': 'Updated SOP Title'}]})
+(7, 200, {'answer': 'TEST_MODE answer: found 1 documents. Top: Updated SOP Title', 'sources': [{'path': 'local_test_store/versions/operations_example.pdf/v2.json', 'snippet': 'Updated SOP Title'}]})
+(4, 200, {'answer': 'TEST_MODE answer: found 1 documents. Top: Updated SOP Title', 'sources': [{'path': 'local_test_store/versions/operations_example.pdf/v2.json', 'snippet': 'Updated SOP Title'}]})
+(8, 200, {'answer': 'TEST_MODE answer: found 1 documents. Top: Updated SOP Title', 'sources': [{'path': 'local_test_store/versions/operations_example.pdf/v2.json', 'snippet': 'Updated SOP Title'}]})
+(11, 200, {'answer': 'TEST_MODE answer: found 1 documents. Top: Updated SOP Title', 'sources': [{'path': 'local_test_store/versions/operations_example.pdf/v2.json', 'snippet': 'Updated SOP Title'}]})
+(6, 200, {'answer': 'TEST_MODE answer: found 1 documents. Top: Updated SOP Title', 'sources': [{'path': 'local_test_store/versions/operations_example.pdf/v2.json', 'snippet': 'Updated SOP Title'}]})
+RAG total 40 elapsed 0.11658549308776855
+PROCESS results:
+(3, 200, {'status': 'success', 'original_file': 'testfile.txt', 'new_path': 'operations/testfile.txt', 'chunks_processed': 1})
+(1, 200, {'status': 'success', 'original_file': 'testfile.txt', 'new_path': 'operations/testfile.txt', 'chunks_processed': 1})
+(0, 200, {'status': 'success', 'original_file': 'testfile.txt', 'new_path': 'operations/testfile.txt', 'chunks_processed': 1})
+(7, 200, {'status': 'success', 'original_file': 'testfile.txt', 'new_path': 'operations/testfile.txt', 'chunks_processed': 1})
+(8, 200, {'status': 'success', 'original_file': 'testfile.txt', 'new_path': 'operations/testfile.txt', 'chunks_processed': 1})
+(4, 200, {'status': 'success', 'original_file': 'testfile.txt', 'new_path': 'operations/testfile.txt', 'chunks_processed': 1})
+(6, 200, {'status': 'success', 'original_file': 'testfile.txt', 'new_path': 'operations/testfile.txt', 'chunks_processed': 1})
+(5, 200, {'status': 'success', 'original_file': 'testfile.txt', 'new_path': 'operations/testfile.txt', 'chunks_processed': 1})
+(2, 200, {'status': 'success', 'original_file': 'testfile.txt', 'new_path': 'operations/testfile.txt', 'chunks_processed': 1})
+(9, 200, {'status': 'success', 'original_file': 'testfile.txt', 'new_path': 'operations/testfile.txt', 'chunks_processed': 1})
+PROCESS total 10 elapsed 0.03534555435180664
+Stress test complete
