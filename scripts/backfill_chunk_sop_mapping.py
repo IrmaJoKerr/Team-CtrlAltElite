@@ -9,9 +9,6 @@ Usage:
 Prerequisites:
     - Database migrations applied (migrate_sop_version_status.sql)
     - Provide DB credentials via `DB_PASSWORD` env var (preferred).
-    - Optional: `SECRET_NAME` and `PROJECT_ID` may be set to fetch the DB password
-        from Google Secret Manager; this is only attempted if both are present and
-        the Secret Manager client is available.
 """
 import os
 import re
@@ -21,29 +18,24 @@ import logging
 from typing import Optional, List, Tuple
 
 import psycopg2
+import json
 
 logging.basicConfig(level=logging.INFO, format='%(asctime)s %(levelname)s %(message)s')
 
 DB_HOST = os.environ.get('DB_HOST')
 DB_USER = os.environ.get('DB_USER', 'postgres')
 DB_NAME = os.environ.get('DB_NAME', 'docintel_db')
-DB_SECRET_NAME = os.environ.get('SECRET_NAME')
 PROJECT_ID = os.environ.get('PROJECT_ID')
 
 def get_db_password() -> str:
-    """Retrieve DB password.
+    """Return DB password from `DB_PASSWORD` env or raise.
 
-    Preference order:
-      1. `DB_PASSWORD` environment variable (recommended for local-first)
-      2. Google Secret Manager (only if `DB_PASSWORD` not set and client available)
-
-    Raises RuntimeError if password cannot be obtained.
+    This script is local-first: provide `DB_PASSWORD` in the environment.
     """
     env_pw = os.environ.get('DB_PASSWORD')
     if env_pw:
         return env_pw
 
-    # Only support DB password via environment variable in the local-first repo.
     raise RuntimeError("DB password not found. Set DB_PASSWORD in the environment.")
 
 

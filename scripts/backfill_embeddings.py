@@ -2,7 +2,7 @@
 Backfill script to migrate existing JSON/text embeddings into the new `embedding_vector` column.
 
 Usage: set environment vars `DB_HOST`, `DB_USER`, `DB_NAME`, and ensure DB password is available
-via Secret Manager or env `DB_PASSWORD`, then run:
+via the environment variable `DB_PASSWORD`, then run:
 
 python scripts/backfill_embeddings.py
 """

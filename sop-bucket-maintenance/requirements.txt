@@ -1,3 +1,2 @@
 fastapi
 uvicorn[standard]
-# google-cloud-storage removed for local-first mode; adapter is used instead
