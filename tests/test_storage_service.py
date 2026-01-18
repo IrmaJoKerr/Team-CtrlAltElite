@@ -27,7 +27,7 @@ class TestStorageService(unittest.TestCase):
         from services.storage_service import extract_text_from_pdf_gs_uri
 
         with self.assertRaises(RuntimeError):
-            extract_text_from_pdf_gs_uri("gs://nonexistent-bucket/nope.pdf")
+            extract_text_from_pdf_gs_uri("storage://nonexistent-bucket/nope.pdf")
 
 
 if __name__ == "__main__":

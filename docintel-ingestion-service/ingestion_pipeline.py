@@ -29,15 +29,15 @@ async def run_ingest_pipeline(
 
     Returns a status dict suitable for API responses and tests.
     """
-    gs_uri = f"gs://{bucket}/{object_name}" if bucket else object_name
+    storage_uri = f"storage://{bucket}/{object_name}" if bucket else object_name
 
     # Extract text in a thread to avoid blocking
     try:
         text = await asyncio.to_thread(
-            storage_service.extract_text_from_pdf_gs_uri, gs_uri
+            storage_service.extract_text_from_pdf_gs_uri, storage_uri
         )
     except Exception as e:
-        LOG.exception("Extraction failed for %s: %s", gs_uri, e)
+        LOG.exception("Extraction failed for %s: %s", storage_uri, e)
         return {"status": "extraction_failed", "error": str(e)}
 
     chunks = doc_ingest_service.chunk_text(text)
@@ -48,13 +48,13 @@ async def run_ingest_pipeline(
     try:
         embeddings = await embedding_service.get_text_embeddings(chunks)
     except Exception as e:
-        LOG.exception("Embedding generation failed for %s: %s", gs_uri, e)
+        LOG.exception("Embedding generation failed for %s: %s", storage_uri, e)
         return {"status": "embeddings_failed", "chunks": len(chunks), "error": str(e)}
 
     if len(embeddings) != len(chunks):
         LOG.error(
             "Embedding count mismatch for %s: %d vs %d",
-            gs_uri,
+            storage_uri,
             len(embeddings),
             len(chunks),
         )
@@ -87,7 +87,7 @@ async def run_ingest_pipeline(
     try:
         inserted = await asyncio.to_thread(db_service.upsert_chunk_records, records)
     except Exception as e:
-        LOG.exception("DB upsert failed for %s: %s", gs_uri, e)
+        LOG.exception("DB upsert failed for %s: %s", storage_uri, e)
         return {"status": "db_upsert_failed", "chunks": len(chunks), "error": str(e)}
 
     # Append audit entry (fire-and-forget but run in thread to ensure persistence)
@@ -104,7 +104,7 @@ async def run_ingest_pipeline(
             audit_entry,
         )
     except Exception:
-        LOG.exception("Failed to append audit for %s", gs_uri)
+        LOG.exception("Failed to append audit for %s", storage_uri)
 
     # Optionally trigger outbox sync to push embeddings to Qdrant
     if enqueue_outbox:

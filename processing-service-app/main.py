@@ -106,26 +106,22 @@ def process_sop_document(cloud_event):
     data = cloud_event.data
     bucket_name = data["bucket"]
     file_name = data["name"]
-    gcs_uri = f"gs://{bucket_name}/{file_name}"
+    storage_uri = f"storage://{bucket_name}/{file_name}"
 
-    logging.info(f"Received GCS event for file: {gcs_uri}")
+    logging.info(f"Received storage event for file: {storage_uri}")
 
     conn = None  # Initialize conn to None
     try:
-        # 1. Download document from storage (local adapter preferred, fallback to GCS)
+        # 1. Download document from storage via adapter (local adapter preferred)
         file_content = None
         try:
             from adapters.storage_adapter import get_storage_adapter
-
             adapter = get_storage_adapter()
             obj_name = f"{bucket_name}/{file_name}".lstrip("/")
             file_content = adapter.read_bytes(obj_name)
         except Exception:
-            if storage_client:
-                blob = storage_client.bucket(bucket_name).blob(file_name)
-                file_content = blob.download_as_bytes()
-            else:
-                raise
+            logging.exception("Failed to read object from storage adapter for %s/%s", bucket_name, file_name)
+            raise RuntimeError("No storage adapter available to download document")
 
         # 2. Extract Metadata
         sop_metadata = extract_sop_metadata(file_content, file_name)
@@ -159,7 +155,7 @@ def process_sop_document(cloud_event):
                 gcs_uri,
                 json.dumps(sop_metadata),
                 "auto-ingest-service",
-                "Initial ingestion via GCS upload",
+                "Initial ingestion via storage upload",
             ),
         )
         version_id = cursor.fetchone()[0]

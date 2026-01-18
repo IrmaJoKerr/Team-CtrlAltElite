@@ -31,16 +31,14 @@ def chunk_text(text: str, chunk_size: int = 1000, overlap: int = 100) -> List[st
 async def ingest_from_gs_event(bucket: str, object_name: str) -> IngestResult:
     """Minimal ingestion orchestration.
 
-    This function is intentionally conservative: it delegates text extraction
-    to `services.storage_service.extract_text_from_pdf_gs_uri` and embeddings
-    to `services.embedding_service.get_text_embeddings`. It currently does not
-    perform DB upserts; that will be added in a following change.
+    Delegates text extraction to `services.storage_service.extract_text_from_pdf_gs_uri`
+    and embeddings to `services.embedding_service.get_text_embeddings`.
 
     Returns an `IngestResult` with a best-effort status.
     """
-    gs_uri = f"gs://{bucket}/{object_name}" if bucket else object_name
+    storage_uri = f"storage://{bucket}/{object_name}" if bucket else object_name
     try:
-        text = storage_service.extract_text_from_pdf_gs_uri(gs_uri)
+        text = storage_service.extract_text_from_pdf_gs_uri(storage_uri)
     except Exception as e:
         LOG.exception("Failed to extract text for %s/%s: %s", bucket, object_name, e)
         raise

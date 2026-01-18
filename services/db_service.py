@@ -1,6 +1,8 @@
 import os
 import logging
 import psycopg2
+import json
+import hashlib
 from typing import Optional
 from typing import List, Dict, Iterable
 from psycopg2.extras import execute_values
@@ -123,3 +125,368 @@ def upsert_chunk_records(
     finally:
         cur.close()
         conn.close()
+
+
+def log_query_activity(
+    session_id: str,
+    current_user: dict,
+    query_text: str,
+    query_timestamp,
+    response_timestamp,
+    status: str,
+    confidence_score: float,
+    gaps: list,
+    sources: list,
+    summary_answer: str,
+    steps: list,
+    model_used: str,
+):
+    """Log query session, results, audits, and cache into the DB.
+
+    This consolidates the inline SQL previously present in `main.py` so callers
+    can perform a single high-level call.
+    """
+    try:
+        # Session record
+        session_rec = {
+            "session_id": session_id,
+            "user_id": current_user.get("id"),
+            "user_role": current_user.get("role"),
+            "user_departments": json.dumps(current_user.get("departments")),
+            "query_text": query_text,
+            "query_hash": hashlib.sha256(query_text.encode()).hexdigest(),
+            "query_timestamp": query_timestamp,
+            "response_timestamp": response_timestamp,
+            "status": status,
+            "confidence_score": confidence_score,
+            "gaps_identified": json.dumps(gaps),
+        }
+
+        upsert_chunk_records([session_rec], table="query_sessions", conflict_keys=("session_id",))
+
+        # Results
+        results_recs = []
+        for idx, src in enumerate(sources):
+            results_recs.append(
+                {
+                    "session_id": session_id,
+                    "sop_id": src.get("sop_id"),
+                    "sop_version_id": src.get("version_id"),
+                    "chunk_id": src.get("chunk_id"),
+                    "relevance_score": src.get("relevance_score"),
+                    "citation_index": idx,
+                }
+            )
+        if results_recs:
+            # Use a sensible conflict key combination for query_results
+            upsert_chunk_records(results_recs, table="query_results", conflict_keys=("session_id","sop_id","chunk_id"))
+
+        # Audit log entries (simple inserts; audit events typically append)
+        if gaps:
+            conn = get_db_connection()
+            cur = conn.cursor()
+            try:
+                for gap in gaps:
+                    cur.execute(
+                        """
+                        INSERT INTO query_audit_log (session_id, event_type, event_details, severity)
+                        VALUES (%s, %s, %s, %s)
+                    """,
+                        (
+                            session_id,
+                            "coverage_gap" if "gap" in gap.lower() else "info",
+                            json.dumps({"message": gap}),
+                            "warning" if "gap" in gap.lower() else "info",
+                        ),
+                    )
+                conn.commit()
+            except Exception:
+                conn.rollback()
+                logging.exception("Failed to insert audit log entries")
+            finally:
+                cur.close()
+                conn.close()
+
+        # Cache response
+        cache_rec = {
+            "session_id": session_id,
+            "summary_answer": summary_answer,
+            "steps": json.dumps([s.dict() if hasattr(s, "dict") else s for s in (steps or [])]),
+            "full_response": json.dumps({"sources_count": len(sources), "steps_count": len(steps or [])}),
+            "model_used": model_used,
+        }
+        upsert_chunk_records([cache_rec], table="query_response_cache", conflict_keys=("session_id",))
+
+    except Exception:
+        logging.exception("Failed to log query activity")
+        raise
+
+
+def create_upload_session_with_metadata(
+    session_id: str,
+    user_id: Optional[int],
+    filename: str,
+    original_filename: str,
+    ai_metadata: dict,
+    model_used: str,
+):
+    """Create a document upload session and associated metadata draft in a single operation."""
+    try:
+        conn = get_db_connection()
+        cur = conn.cursor()
+        try:
+            cur.execute(
+                """
+                INSERT INTO document_uploads (session_id, user_id, filename, original_filename, upload_status)
+                VALUES (%s, %s, %s, %s, 'draft')
+            """,
+                (session_id, user_id, filename, original_filename),
+            )
+
+            cur.execute(
+                """
+                INSERT INTO upload_metadata_drafts 
+                (session_id, extracted_title, extracted_department, extracted_author, extracted_type, 
+                 ai_confidence, ai_model_used, confirmed_title, confirmed_department, confirmed_author, confirmed_type)
+                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+            """,
+                (
+                    session_id,
+                    ai_metadata.get("title", {}).get("suggested_value"),
+                    ai_metadata.get("department", {}).get("suggested_value"),
+                    "Unknown",
+                    ai_metadata.get("process_type", {}).get("suggested_value"),
+                    json.dumps(
+                        {
+                            "title": ai_metadata.get("title", {}).get("confidence_score", 0.0),
+                            "department": ai_metadata.get("department", {}).get("confidence_score", 0.0),
+                            "type": ai_metadata.get("process_type", {}).get("confidence_score", 0.0),
+                        }
+                    ),
+                    model_used,
+                    ai_metadata.get("title", {}).get("suggested_value"),
+                    ai_metadata.get("department", {}).get("suggested_value"),
+                    "Unknown",
+                    ai_metadata.get("process_type", {}).get("suggested_value"),
+                ),
+            )
+            conn.commit()
+        except Exception:
+            conn.rollback()
+            logging.exception("Failed to create upload session with metadata")
+            raise
+        finally:
+            cur.close()
+            conn.close()
+    except Exception:
+        logging.exception("Failed to connect while creating upload session")
+        raise
+
+
+def log_upload_event(
+    session_id: str,
+    user_id: Optional[int],
+    event_type: str,
+    field_changes: Optional[Dict] = None,
+    event_details: Optional[Dict] = None,
+):
+    """Append an upload audit event to `upload_audit_log`."""
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        cursor.execute(
+            """
+            INSERT INTO upload_audit_log (session_id, user_id, event_type, field_changes, event_details)
+            VALUES (%s, %s, %s, %s, %s)
+        """,
+            (
+                str(session_id),
+                user_id,
+                event_type,
+                json.dumps(field_changes) if field_changes else None,
+                json.dumps(event_details) if event_details else None,
+            ),
+        )
+        conn.commit()
+        cursor.close()
+        conn.close()
+    except Exception:
+        logging.exception("Failed to log upload event via db_service")
+        raise
+
+
+def update_upload_metadata(session_id: str, edits: Dict[str, Optional[str]]) -> int:
+    """Update fields on `upload_metadata_drafts` for a session.
+
+    Returns number of rows updated.
+    """
+    if not edits:
+        return 0
+    try:
+        fields = []
+        values = []
+        mapping = {
+            "title": ("confirmed_title",),
+            "department": ("confirmed_department",),
+            "author": ("confirmed_author",),
+            "type": ("confirmed_type",),
+        }
+        for k, v in edits.items():
+            if k in mapping and v is not None:
+                fields.append(f"{mapping[k][0]} = %s")
+                values.append(v)
+
+        if not fields:
+            return 0
+
+        values.append(session_id)
+
+        sql = f"UPDATE upload_metadata_drafts SET {', '.join(fields)}, last_edited_at = NOW() WHERE session_id = %s"
+
+        conn = get_db_connection()
+        cur = conn.cursor()
+        try:
+            cur.execute(sql, tuple(values))
+            affected = cur.rowcount
+            conn.commit()
+            return affected
+        except Exception:
+            conn.rollback()
+            logging.exception("Failed to update upload metadata via db_service")
+            raise
+        finally:
+            cur.close()
+            conn.close()
+    except Exception:
+        logging.exception("Failed to prepare update_upload_metadata")
+        raise
+
+
+def update_document_metadata(gcs_object_path: str, metadata_update: Dict[str, str]) -> int:
+    """Perform an update on the `documents` table for human-edited metadata fields.
+
+    Returns number of rows updated.
+    """
+    if not metadata_update:
+        return 0
+    try:
+        update_fields = []
+        update_values = []
+        allowed = [
+            "final_title",
+            "final_department",
+            "final_process_type",
+            "final_status",
+        ]
+        for field in allowed:
+            if field in metadata_update:
+                update_fields.append(f"{field} = %s")
+                update_values.append(metadata_update[field])
+
+        if not update_fields:
+            return 0
+
+        update_values.append(gcs_object_path)
+
+        update_query = f"UPDATE documents SET {', '.join(update_fields)}, updated_at = NOW() WHERE gcs_object_path = %s"
+
+        conn = get_db_connection()
+        cur = conn.cursor()
+        try:
+            cur.execute(update_query, tuple(update_values))
+            affected = cur.rowcount
+            conn.commit()
+            return affected
+        except Exception:
+            conn.rollback()
+            logging.exception("Failed to update document metadata via db_service")
+            raise
+        finally:
+            cur.close()
+            conn.close()
+    except Exception:
+        logging.exception("Failed to prepare update_document_metadata")
+        raise
+
+
+def confirm_document_metadata(gcs_object_path: str, reviewer_username: str) -> int:
+    """Mark a document as approved (review) and return the document id.
+
+    Returns the document id on success, or raises on failure.
+    """
+    try:
+        conn = get_db_connection()
+        cur = conn.cursor()
+        try:
+            cur.execute(
+                "SELECT id FROM documents WHERE gcs_object_path = %s LIMIT 1",
+                (gcs_object_path,),
+            )
+            row = cur.fetchone()
+            if not row:
+                raise RuntimeError("Document not found")
+            documents_id = row[0]
+
+            cur.execute(
+                "UPDATE documents SET review_status = 'approved', last_reviewed_by = %s, last_reviewed_at = NOW(), updated_at = NOW() WHERE gcs_object_path = %s",
+                (reviewer_username, gcs_object_path),
+            )
+            conn.commit()
+            return documents_id
+        except Exception:
+            conn.rollback()
+            logging.exception("Failed to confirm document metadata via db_service")
+            raise
+        finally:
+            cur.close()
+            conn.close()
+    except Exception:
+        logging.exception("Failed to connect while confirming document metadata")
+        raise
+
+
+def discard_upload_session(session_id: str) -> int:
+    """Mark an upload session as discarded/is_deleted and return affected rows."""
+    try:
+        conn = get_db_connection()
+        cur = conn.cursor()
+        try:
+            cur.execute(
+                "UPDATE document_uploads SET upload_status = 'discarded', discarded_at = NOW(), is_deleted = TRUE WHERE session_id = %s",
+                (session_id,),
+            )
+            affected = cur.rowcount
+            conn.commit()
+            return affected
+        except Exception:
+            conn.rollback()
+            logging.exception("Failed to discard upload session via db_service")
+            raise
+        finally:
+            cur.close()
+            conn.close()
+    except Exception:
+        logging.exception("Failed to connect while discarding upload session")
+        raise
+
+
+def delete_document_record(gcs_object_path: str) -> int:
+    """Delete document row(s) for a given gcs_object_path. Returns number deleted."""
+    try:
+        conn = get_db_connection()
+        cur = conn.cursor()
+        try:
+            cur.execute("DELETE FROM documents WHERE gcs_object_path = %s", (gcs_object_path,))
+            deleted = cur.rowcount
+            conn.commit()
+            return deleted
+        except Exception:
+            conn.rollback()
+            logging.exception("Failed to delete document record via db_service")
+            raise
+        finally:
+            cur.close()
+            conn.close()
+    except Exception:
+        logging.exception("Failed to connect while deleting document record")
+        raise

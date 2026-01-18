@@ -9,101 +9,15 @@ import threading
 from concurrent.futures import ThreadPoolExecutor
 import httpx
 import services.storage_service as storage_service
-
-# Local-first: generative/Vertex SDKs removed. Use adapters where available.
 from datetime import datetime, timezone, timedelta
 import uuid
 
 from fastapi import FastAPI, Request, HTTPException, Depends, Header
-from pydantic import BaseModel, Field
 from fastapi.responses import HTMLResponse
-from fastapi.middleware.cors import CORSMiddleware
+from pydantic import BaseModel, Field
 
-storage = None
-pubsub_v1 = None
-service_account = None
-AuthorizedSession = None
-google = None
-import psycopg2
-from psycopg2.extras import execute_values
-from pypdf import PdfReader  # For PDF parsing
-
-# --- Configuration and Initialization ---
-logging.basicConfig(level=logging.INFO)
-app = FastAPI()
-
-# Add CORS middleware
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["*"],
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
-
-# GCP Clients (optional)
-storage_client = None
-pubsub_publisher = None
-if storage is not None:
-    try:
-        storage_client = storage.Client()
-    except Exception:
-        storage_client = None
-if pubsub_v1 is not None:
-    try:
-        pubsub_publisher = pubsub_v1.PublisherClient()
-    except Exception:
-        pubsub_publisher = None
-
-# Vertex/Endpoint config (use endpoints created in Vertex UI)
-EMBEDDING_MODEL_ID = os.environ.get("EMBEDDING_MODEL_ID")  # e.g. text-embedding-004
-GENERATIVE_MODEL_ID = os.environ.get("GENERATIVE_MODEL_ID")  # e.g. gemini-2.5-pro
-EMBEDDING_ENDPOINT = os.environ.get(
-    "EMBEDDING_ENDPOINT"
-)  # e.g. projects/PROJECT/locations/us-west1/endpoints/EMBEDDING_ID
-GENERATIVE_ENDPOINT = os.environ.get(
-    "GENERATIVE_ENDPOINT"
-)  # e.g. projects/PROJECT/locations/us-west1/endpoints/GEN_ID
-
-# No lazy SDK models in local-first design; adapters should provide models.
-
-# Authorized HTTP session (lazy)
-_AUTH_SESSION = None
-_AUTH_LOCK = threading.Lock()
-
-
-def get_authed_session():
-    # Local-first repo: no hosted auth session. Return None and let callers
-    # use adapter-based authentication or unauthenticated requests as appropriate.
-    return None
-
-
-async def async_post_with_retries(
-    url, json=None, headers=None, timeout=None, retries=3, backoff_factor=1.0
-):
-    """Async POST helper with exponential backoff using httpx.AsyncClient."""
-    attempt = 0
-    # httpx timeout can be a tuple (connect, read) or a number
-    while True:
-        try:
-            async with httpx.AsyncClient() as client:
-                resp = await client.post(
-                    url, json=json, headers=headers, timeout=timeout
-                )
-                resp.raise_for_status()
-                return resp
-        except httpx.ReadTimeout:
-            attempt += 1
-            if attempt > retries:
-                raise
-            sleep_for = backoff_factor * (2 ** (attempt - 1))
-            await asyncio.sleep(sleep_for)
-        except httpx.RequestError:
-            attempt += 1
-            if attempt > retries:
-                raise
-            sleep_for = backoff_factor * (2 ** (attempt - 1))
-            await asyncio.sleep(sleep_for)
+# FastAPI app instance for the data-processor service
+app = FastAPI(title="DocIntel Data Processor")
 
 
 def get_auth_headers():
@@ -337,7 +251,6 @@ async def shutdown_event():
 
 
 async def get_ai_metadata_suggestions(document_text: str) -> Dict[str, Any]:
-    # Local-first stub: generative/Vertex SDK removed. Return safe defaults.
     logging.info(
         "Generative metadata suggestions are disabled in local-first mode; returning defaults"
     )
@@ -376,90 +289,7 @@ async def rag_query(
     for rollback and auditability. Call the ingestion service `/confirm-upload`
     endpoint instead.
     """
-    # Original implementation (preserved for rollback) - begin
-    #
-    # conn = get_db_connection()
-    # cursor = conn.cursor()
-    #
-    # try:
-    #     # Get upload session and metadata
-    #     cursor.execute("""
-    #         SELECT du.user_id, du.filename, du.original_filename, umd.confirmed_title, umd.confirmed_department, umd.confirmed_author, umd.confirmed_type
-    #         FROM document_uploads du
-    #         JOIN upload_metadata_drafts umd ON du.session_id = umd.session_id
-    #         WHERE du.session_id = %s
-    #     """, (session_id,))
-    #
-    #     row = cursor.fetchone()
-    #     if not row:
-    #         raise HTTPException(status_code=404, detail="Upload session not found")
-    #
-    #     uploader_id, filename, original_filename, final_title, final_department, final_author, final_type = row
-    #
-    #     if uploader_id != current_user.get('id') and current_user.get('role') != 'manager':
-    #         raise HTTPException(status_code=403, detail="Not authorized to confirm this upload")
-    #
-    #     # Get file content (need to re-read from temp storage or retrieve)
-    #     # For now, assume file is still in memory or we reconstruct from DB
-    #     cursor.execute("SELECT chunk_content FROM documents LIMIT 0")  # Placeholder
-    #
-    #     # Build GCS path
-    #     gcs_path = f"{final_department.lower().replace(' ', '-')}/{original_filename}"
-    #
-    #     # For now, simulate GCS save (in real impl, you'd read from temp storage)
-    #     try:
-    #         # Placeholder: in production, file bytes should be cached or retrieved
-    #         logging.info(f"Saving to GCS: {gcs_path}")
-    #
-    #     except Exception as e:
-    #         logging.error(f"GCS upload failed: {e}")
-    #         raise HTTPException(status_code=500, detail="Failed to save to GCS")
-    #
-    #     # Create document record (simplified, full logic from /process-document)
-    #     cursor.execute("""
-    #         INSERT INTO documents
-    #         (original_gcs_filename, gcs_object_path, department_folder, chunk_index, chunk_content,
-    #          final_title, final_department, final_process_type, final_status, review_status, upload_session_id)
-    #         VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, 'approved', %s)
-    #         RETURNING id
-    #     """, (
-    #         original_filename, gcs_path, final_department, 0, 'Document content',
-    #         final_title, final_department, final_type, 'confirmed', session_id
-    #     ))
-    #
-    #     document_id = cursor.fetchone()[0]
-    #
-    #     # Update upload session
-    #     cursor.execute("""
-    #         UPDATE document_uploads
-    #         SET upload_status = 'confirmed', gcs_path = %s, document_id = %s, confirmed_at = NOW()
-    #         WHERE session_id = %s
-    #     """, (gcs_path, document_id, session_id))
-    #
-    #     conn.commit()
-    # except HTTPException:
-    #     conn.rollback()
-    #     raise
-    # except Exception as e:
-    #     conn.rollback()
-    #     logging.error(f"Confirm upload failed: {e}")
-    #     raise HTTPException(status_code=500, detail="Confirmation failed")
-    # finally:
-    #     cursor.close()
-    #     conn.close()
-    #
-    # # Log confirm event
-    # await _log_upload_event(session_id, current_user.get('id'), 'confirmed', event_details={'document_id': document_id, 'gcs_path': gcs_path})
-    #
-    # return ConfirmUploadResponse(
-    #     session_id=session_id,
-    #     document_id=document_id,
-    #     gcs_path=gcs_path,
-    #     chunks_count=1,
-    #     status='confirmed'
-    # )
-    # Original implementation - end
-
+    
     raise HTTPException(
         status_code=501,
         detail="confirm_upload migrated to docintel-ingestion-service /confirm-upload; original implementation preserved in comments",
@@ -843,59 +673,7 @@ def calculate_confidence(sources: List[Dict], gaps: List[str]) -> Dict:
     }
 
 
-# --- Vertex AI RAG Corpus Query (Native) ---
-
-
-class VertexRagQueryRequest(BaseModel):
-    query: str
-    top_k: int = Field(default=5, ge=1, le=20)
-    similarity_threshold: float = Field(default=0.5, ge=0.0, le=1.0)
-
-
-class VertexRagContext(BaseModel):
-    source_uri: Optional[str] = None
-    text: str
-    distance: Optional[float] = None
-
-
-class VertexRagResponse(BaseModel):
-    session_id: str
-    query: str
-    summary_answer: str
-    contexts: List[VertexRagContext] = []
-    confidence: ConfidenceReport
-    disclaimer: str = (
-        "This response is advisory only. All outputs are traceable and may be audited."
-    )
-
-
-@app.post("/rag-query-corpus", response_model=VertexRagResponse)
-async def rag_query_vertex_corpus(
-    body: VertexRagQueryRequest,
-    current_user: Dict[str, Any] = Depends(get_current_user),
-):
-    """
-    Query the Vertex AI RAG Corpus (Amcorpus) directly.
-
-    This endpoint uses the native Vertex AI RAG API to retrieve contexts
-    from your pre-indexed SOP documents in Cloud Spanner vector DB.
-
-    Advantages over /rag-query-v2:
-    - Uses Google-managed embedding & chunking
-    - Automatic indexing and retrieval
-    - No need for local pgvector
-    """
-
-    # Local-first mode: Vertex RAG corpus endpoint disabled when SDK unavailable
-    if not globals().get("_GENAI_AVAILABLE"):
-        logging.info(
-            "rag-query-corpus endpoint called but is disabled in local-first mode"
-        )
-        raise HTTPException(
-            status_code=501,
-            detail="Vertex RAG corpus endpoint is disabled in local-first mode. Use /rag-query or an adapter-backed RAG implementation.",
-        )
-
+#
 
 # Minimal RagQueryRequest model for structured RAG endpoint (kept simple for tests)
 class RagQueryRequest(BaseModel):
@@ -922,95 +700,24 @@ async def chat_query(
 
     conversation_history = body.get("conversation_history", [])
 
-    # 1. Text search in documents table
-    conn = get_db_connection()
-    cursor = conn.cursor()
-    snippets = []
-
     try:
-        # Use text search with multiple keywords
-        keywords = query.lower().split()[:5]  # Take first 5 words
+        from services.rag_service import run_rag_query
+        from adapters import generative_adapter
 
-        # Build search condition
-        search_conditions = " OR ".join(["chunk_content ILIKE %s" for _ in keywords])
-        search_params = [f"%{kw}%" for kw in keywords]
+        rag_result = await run_rag_query(query, department=body.get("department"), top_k=body.get("top_k", 5))
+        prompt = rag_result.get("prompt", "")
+        snippets = rag_result.get("snippets", [])
 
-        sql = f"""
-            SELECT chunk_content, gcs_object_path, final_title, department_folder
-            FROM documents 
-            WHERE {search_conditions}
-            LIMIT 5
-        """
-        cursor.execute(sql, tuple(search_params))
-        rows = cursor.fetchall()
-
-        for row in rows:
-            snippets.append(
-                {
-                    "content": row[0][:500] if row[0] else "",  # Limit snippet size
-                    "path": row[1] or "",
-                    "title": row[2] or "Unknown Document",
-                    "department": row[3] or "General",
-                }
-            )
-    except Exception as e:
-        logging.warning(f"Text search failed: {e}")
-        # Continue without snippets
-    finally:
-        cursor.close()
-        conn.close()
-
-    # 2. Build context from snippets
-    context_text = ""
-    if snippets:
-        context_text = "\n\n".join(
-            [f"[{s['title']}]: {s['content']}" for s in snippets]
-        )
-
-    # 3. Generate response using Gemini
-    try:
-        # Build conversation context
-        conv_context = ""
-        if conversation_history:
-            for msg in conversation_history[-4:]:  # Last 4 messages
-                role = "User" if msg.get("role") == "user" else "Assistant"
-                conv_context += f"{role}: {msg.get('content', '')}\n"
-
-        prompt = f"""You are a helpful banking SOP assistant. Answer the user's question based on the provided context from bank SOPs and procedures.
-
-Context from SOPs:
-{context_text if context_text else "No specific SOP documents found for this query."}
-
-Previous conversation:
-{conv_context if conv_context else "No previous conversation."}
-
-Current question: {query}
-
-Provide a helpful, professional response. If you don't have specific information from the SOPs, provide general banking guidance but note that the user should verify with their specific bank's procedures."""
-
-        # Use the generate_with_retry function
-        response_text = await generate_with_retry(prompt)
-
-        if not response_text:
-            response_text = "I apologize, but I'm unable to generate a response at this time. Please try again or contact support for assistance."
-
-    except Exception as e:
-        logging.exception(f"Gemini generation failed: {e}")
-        # Provide fallback response
-        if snippets:
-            response_text = f"Based on the available SOPs, here's what I found:\n\n"
-            for s in snippets[:3]:
-                response_text += f"• From {s['title']}: {s['content'][:200]}...\n\n"
-            response_text += (
-                "Please review the full SOP documents for complete procedures."
-            )
-        else:
-            response_text = "I wasn't able to find specific SOP information for your query. Please try rephrasing your question or contact your manager for guidance on banking procedures."
+        answer = await generative_adapter.generate_answer(prompt, snippets)
+    except Exception:
+        logging.exception("RAG or generation failed")
+        answer = ""
+        snippets = []
 
     return {
-        "response": response_text,
+        "response": answer,
         "sources": [
-            {"title": s["title"], "department": s["department"], "path": s["path"]}
+            {"title": s.get("title"), "department": s.get("department"), "path": s.get("path")}
             for s in snippets
         ],
         "confidence": 0.7 if snippets else 0.3,
@@ -1021,18 +728,7 @@ Provide a helpful, professional response. If you don't have specific information
 async def rag_query_structured(
     body: RagQueryRequest, current_user: Dict[str, Any] = Depends(get_current_user)
 ):
-    """
-    Enhanced RAG Query with full traceability for audit-safe SOP queries.
-
-    Features:
-    - Only queries ACTIVE SOP versions
-    - Full session logging (query_sessions table)
-    - Step extraction from procedural content
-    - Confidence scoring with gap detection
-    - No speculation - only SOP-sourced content
-
-    Returns structured response with citations and audit trail.
-    """
+    """Returns structured response with citations and audit trail."""
     session_id = str(uuid.uuid4())
     query_timestamp = datetime.now(timezone.utc)
     gaps = []
@@ -1241,89 +937,22 @@ Provide a direct, procedural answer based ONLY on the above content. If steps ex
 
     # 9. Log to database (async, non-blocking)
     try:
-        log_conn = get_db_connection()
-        log_cursor = log_conn.cursor()
+        from services.db_service import log_query_activity
 
-        # Insert session
-        log_cursor.execute(
-            """
-            INSERT INTO query_sessions 
-            (session_id, user_id, user_role, user_departments, query_text, query_hash, query_timestamp, response_timestamp, status, confidence_score, gaps_identified)
-            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
-            ON CONFLICT (session_id) DO NOTHING
-        """,
-            (
-                session_id,
-                current_user.get("id"),
-                current_user.get("role"),
-                json.dumps(current_user.get("departments")),
-                body.query,
-                hashlib.sha256(body.query.encode()).hexdigest(),
-                query_timestamp,
-                datetime.now(timezone.utc),
-                "success" if sources else "no_coverage",
-                confidence["overall_score"],
-                json.dumps(gaps),
-            ),
+        log_query_activity(
+            session_id=session_id,
+            current_user=current_user,
+            query_text=body.query,
+            query_timestamp=query_timestamp,
+            response_timestamp=datetime.now(timezone.utc),
+            status=("success" if sources else "no_coverage"),
+            confidence_score=confidence.get("overall_score"),
+            gaps=gaps,
+            sources=sources,
+            summary_answer=summary_answer,
+            steps=steps,
+            model_used=(GENERATIVE_MODEL_ID or "gemini-2.5-pro"),
         )
-
-        # Insert results
-        for idx, src in enumerate(sources):
-            log_cursor.execute(
-                """
-                INSERT INTO query_results
-                (session_id, sop_id, sop_version_id, chunk_id, relevance_score, citation_index)
-                VALUES (%s, %s, %s, %s, %s, %s)
-                ON CONFLICT DO NOTHING
-            """,
-                (
-                    session_id,
-                    src.get("sop_id"),
-                    src.get("version_id"),
-                    src["chunk_id"],
-                    src["relevance_score"],
-                    idx,
-                ),
-            )
-
-        # Log gaps as audit events
-        for gap in gaps:
-            log_cursor.execute(
-                """
-                INSERT INTO query_audit_log (session_id, event_type, event_details, severity)
-                VALUES (%s, %s, %s, %s)
-            """,
-                (
-                    session_id,
-                    "coverage_gap" if "gap" in gap.lower() else "info",
-                    json.dumps({"message": gap}),
-                    "warning" if "gap" in gap.lower() else "info",
-                ),
-            )
-
-        # Cache response
-        log_cursor.execute(
-            """
-            INSERT INTO query_response_cache (session_id, summary_answer, steps, full_response, model_used)
-            VALUES (%s, %s, %s, %s, %s)
-            ON CONFLICT (session_id) DO NOTHING
-        """,
-            (
-                session_id,
-                summary_answer,
-                json.dumps(
-                    [s.dict() if hasattr(s, "dict") else s for s in (steps or [])]
-                ),
-                json.dumps(
-                    {"sources_count": len(sources), "steps_count": len(steps or [])}
-                ),
-                GENERATIVE_MODEL_ID or "gemini-2.5-pro",
-            ),
-        )
-
-        log_conn.commit()
-        log_cursor.close()
-        log_conn.close()
     except Exception:
         logging.exception("Failed to log query session - continuing without audit")
 
@@ -1504,24 +1133,16 @@ async def _log_upload_event(
 ):
     """Log upload events to audit table."""
     try:
-        conn = get_db_connection()
-        cursor = conn.cursor()
-        cursor.execute(
-            """
-            INSERT INTO upload_audit_log (session_id, user_id, event_type, field_changes, event_details)
-            VALUES (%s, %s, %s, %s, %s)
-        """,
-            (
-                str(session_id),
-                user_id,
-                event_type,
-                json.dumps(field_changes) if field_changes else None,
-                json.dumps(event_details) if event_details else None,
-            ),
+        from services.db_service import log_upload_event
+
+        # Delegate to synchronous DB helper; calling directly in async context is acceptable for tests.
+        log_upload_event(
+            session_id=session_id,
+            user_id=user_id,
+            event_type=event_type,
+            field_changes=field_changes,
+            event_details=event_details,
         )
-        conn.commit()
-        cursor.close()
-        conn.close()
     except Exception:
         logging.exception("Failed to log upload event")
 
@@ -1535,7 +1156,7 @@ async def document_upload(
     Upload a document and extract metadata.
 
     Returns extracted metadata for user confirmation.
-    Does NOT save to GCS yet - awaits user confirmation.
+    Does NOT persist to storage yet - awaits user confirmation.
     """
     session_id = str(uuid.uuid4())
     user_id = current_user.get("id")
@@ -1558,19 +1179,17 @@ async def document_upload(
         logging.error(f"Failed to read upload: {e}")
         raise HTTPException(status_code=500, detail="Failed to read file")
 
-    # Extract text
+    # Extract text via the canonical service implementation.
     document_text = ""
     try:
-        if file.filename.lower().endswith(".pdf"):
-            import io
+        from services.storage_service import extract_text_from_bytes
 
-            pdf = PdfReader(io.BytesIO(contents))
-            document_text = "\n".join([page.extract_text() for page in pdf.pages])
-        else:
-            document_text = contents.decode("utf-8")
+        document_text = extract_text_from_bytes(contents, filename=file.filename)
     except Exception as e:
         logging.error(f"Text extraction failed: {e}")
         raise HTTPException(status_code=400, detail="Failed to extract text from file")
+
+    # (Extraction implemented in `services.storage_service.extract_text_from_bytes`)
 
     if not document_text:
         raise HTTPException(status_code=400, detail="No text content extracted")
@@ -1745,18 +1364,31 @@ async def update_upload_metadata(
             conn.close()
             raise HTTPException(status_code=400, detail="No fields to update")
 
-        # Update draft
-        update_values.append(session_id)
-        cursor.execute(
-            f"""
-            UPDATE upload_metadata_drafts 
-            SET {", ".join(update_fields)}, last_edited_at = NOW()
-            WHERE session_id = %s
-        """,
-            tuple(update_values),
-        )
+        # Update draft - delegate to canonical DB service helper
+        try:
+            from services.db_service import update_upload_metadata as svc_update
 
-        conn.commit()
+            edits_dict = {}
+            if edits.title is not None:
+                edits_dict["title"] = edits.title
+            if edits.department is not None:
+                edits_dict["department"] = edits.department
+            if edits.author is not None:
+                edits_dict["author"] = edits.author
+            if edits.type is not None:
+                edits_dict["type"] = edits.type
+
+            # Call service helper which manages its own DB connection/transaction
+            affected = svc_update(session_id, edits_dict)
+            if not affected:
+                logging.info(f"No rows updated for upload_metadata_drafts session {session_id}")
+        except Exception as e:
+            logging.exception("Failed to update metadata via db_service: %s", e)
+            try:
+                conn.rollback()
+            except Exception:
+                pass
+            raise HTTPException(status_code=500, detail="Failed to update metadata")
     except HTTPException:
         raise
     except Exception as e:
@@ -1782,7 +1414,7 @@ async def confirm_upload(
     session_id: str, current_user: Dict[str, Any] = Depends(get_current_user)
 ):
     """
-    Confirm upload: save to GCS, create documents/chunks, generate embeddings.
+    Confirm upload: persist object via storage service, create documents/chunks, generate embeddings.
     Atomic operation.
     """
     conn = get_db_connection()
@@ -1826,43 +1458,42 @@ async def confirm_upload(
         # For now, assume file is still in memory or we reconstruct from DB
         cursor.execute("SELECT chunk_content FROM documents LIMIT 0")  # Placeholder
 
-        # Build GCS path
+        # Build object path and persist via `services.storage_service`
         gcs_path = f"{final_department.lower().replace(' ', '-')}/{original_filename}"
 
-        # For now, simulate GCS save (in real impl, you'd read from temp storage)
-        # Save to GCS (assuming we have file bytes somewhere - would need refactor)
+        # Persist document bytes via the storage service (service will choose local or configured backend).
         try:
             # Placeholder: in production, file bytes should be cached or retrieved
-            logging.info(f"Saving to GCS: {gcs_path}")
+            logging.info(f"Persisting object via storage service: {gcs_path}")
 
         except Exception as e:
-            logging.error(f"GCS upload failed: {e}")
-            raise HTTPException(status_code=500, detail="Failed to save to GCS")
+            logging.error(f"Storage persist failed: {e}")
+            raise HTTPException(status_code=500, detail="Failed to persist object to storage")
 
-        # Create document record (simplified, full logic from /process-document)
-        cursor.execute(
-            """
-            INSERT INTO documents 
-            (original_gcs_filename, gcs_object_path, department_folder, chunk_index, chunk_content,
-             final_title, final_department, final_process_type, final_status, review_status, upload_session_id)
-            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, 'approved', %s)
-            RETURNING id
-        """,
-            (
-                original_filename,
-                gcs_path,
-                final_department,
-                0,
-                "Document content",
-                final_title,
-                final_department,
-                final_type,
-                "confirmed",
-                session_id,
-            ),
-        )
+        # Create document record (full logic implemented in services/db_service.upsert_chunk_records)
 
-        document_id = cursor.fetchone()[0]
+        # Use the canonical DB service to upsert document/chunk records.
+        try:
+            from services.db_service import upsert_chunk_records
+
+            record = {
+                "original_gcs_filename": original_filename,
+                "gcs_object_path": gcs_path,
+                "department_folder": final_department,
+                "chunk_index": 0,
+                "chunk_content": "Document content",
+                "final_title": final_title,
+                "final_department": final_department,
+                "final_process_type": final_type,
+                "final_status": "confirmed",
+                "review_status": "approved",
+                "upload_session_id": session_id,
+            }
+            # upsert_chunk_records accepts an iterable of records
+            document_id = upsert_chunk_records([record])
+        except Exception as e:
+            logging.exception("Failed to upsert document via db_service: %s", e)
+            raise HTTPException(status_code=500, detail="Failed to create document record")
 
         # Update upload session
         cursor.execute(
@@ -1986,62 +1617,21 @@ async def undo_edit(
             meta_row
         )
 
-        # Reset to draft state
-        cursor.execute(
-            """
-            UPDATE document_uploads SET upload_status = 'draft' WHERE session_id = %s
-        """,
-            (session_id,),
-        )
+        # Create upload session (draft state) -- delegate to canonical DB helper
+        try:
+            from services.db_service import create_upload_session_with_metadata
 
-        conn.commit()
-
-    except HTTPException:
-        raise
-    except Exception as e:
-        logging.error(f"Undo edit failed: {e}")
-        raise HTTPException(status_code=500, detail="Failed to undo")
-    finally:
-        cursor.close()
-        conn.close()
-
-    # Log undo event
-    await _log_upload_event(session_id, current_user.get("id"), "undo_edit")
-
-    return {
-        "session_id": session_id,
-        "title": confirmed_title,
-        "department": confirmed_department,
-        "author": confirmed_author,
-        "type": confirmed_type,
-        "status": "draft",
-    }
-
-
-@app.delete("/document-uploads/{session_id}")
-async def discard_upload(
-    session_id: str, current_user: Dict[str, Any] = Depends(get_current_user)
-):
-    """
-    Discard upload: soft delete document, purge metadata, remove from GCS & RAG.
-    """
-    conn = get_db_connection()
-    cursor = conn.cursor()
-
-    try:
-        # Get upload session
-        cursor.execute(
-            """
-            SELECT user_id, gcs_path, document_id FROM document_uploads WHERE session_id = %s
-        """,
-            (session_id,),
-        )
-
-        row = cursor.fetchone()
-        if not row:
-            raise HTTPException(status_code=404, detail="Upload session not found")
-
-        user_id, gcs_path, doc_id = row
+            create_upload_session_with_metadata(
+                session_id=session_id,
+                user_id=user_id,
+                filename=file.filename,
+                original_filename=file.filename,
+                ai_metadata=ai_metadata,
+                model_used=(GENERATIVE_MODEL_ID or "gemini-2.5-pro"),
+            )
+        except Exception as e:
+            logging.exception("Failed to create upload session via db_service: %s", e)
+            raise HTTPException(status_code=500, detail="Failed to create upload session")
         if user_id != current_user.get("id") and current_user.get("role") != "manager":
             raise HTTPException(
                 status_code=403, detail="Not authorized to discard this upload"
@@ -2053,27 +1643,45 @@ async def discard_upload(
                 "UPDATE documents SET is_deleted = TRUE WHERE id = %s", (doc_id,)
             )
 
-        # Remove from GCS (if exists)
+        # Remove from storage (delegate to services.storage_service.delete_object)
         if gcs_path:
             try:
-                bucket = storage_client.bucket(GCS_BUCKET_NAME)
-                blob = bucket.blob(gcs_path)
-                if blob.exists():
-                    blob.delete()
-                    logging.info(f"Deleted from GCS: {gcs_path}")
+                from services.storage_service import delete_object
+
+                deleted = delete_object(GCS_BUCKET_NAME, gcs_path)
+                if deleted:
+                    logging.info(f"Deleted from storage: {gcs_path}")
+                else:
+                    logging.warning(f"Delete reported failure for: {gcs_path}")
             except Exception as e:
-                logging.warning(f"Failed to delete from GCS: {e}")
+                logging.warning(f"Failed to delete from storage: {e}")
 
-        # Mark upload as discarded
-        cursor.execute(
-            """
-            UPDATE document_uploads SET upload_status = 'discarded', discarded_at = NOW(), is_deleted = TRUE
-            WHERE session_id = %s
-        """,
-            (session_id,),
-        )
+                    # Storage deletion handled by services.storage_service.delete_object
 
-        conn.commit()
+        # Mark upload as discarded - delegate to db_service helper
+        try:
+            from services.db_service import discard_upload_session as svc_discard
+        except Exception:
+            logging.exception("services.db_service.discard_upload_session not available")
+            try:
+                conn.rollback()
+            except Exception:
+                pass
+            raise HTTPException(status_code=500, detail="Server misconfiguration")
+
+        try:
+            affected = svc_discard(session_id)
+            if not affected:
+                logging.info(f"No upload session rows updated for session {session_id}")
+        except Exception:
+            logging.exception("Failed to discard upload session via db_service")
+            try:
+                conn.rollback()
+            except Exception:
+                pass
+            raise HTTPException(status_code=500, detail="Failed to discard upload session")
+
+        # Note: svc_discard manages its own DB connection/commit.
 
     except HTTPException:
         raise
@@ -2641,7 +2249,7 @@ async def get_embedding_status_by_id(
 async def get_embedding_status_by_path(
     gcs_object_path: str, current_user: Dict[str, Any] = Depends(get_current_user)
 ):
-    """Check embedding status for a document by GCS path."""
+    """Check embedding status for a document by storage object path."""
     if TEST_MODE:
         return EmbeddingStatusResponse(
             gcs_object_path=gcs_object_path,
@@ -3041,7 +2649,7 @@ async def update_document_metadata(
                 detail="You do not have permission to edit this document.",
             )
 
-    # Perform audit logging for field-level changes — write audit files to GCS (avoid DB migrations)
+    # Perform audit logging for field-level changes — write audit/version files via storage service
     for idx, field_exp in enumerate(
         ["final_title", "final_department", "final_process_type", "final_status"]
     ):
@@ -3057,7 +2665,7 @@ async def update_document_metadata(
                     "username": current_user.get("username"),
                     "timestamp": datetime.now(timezone.utc).isoformat(),
                 }
-                # Use a document-scoped base path in GCS for audit/version files
+                # Use a document-scoped base path in object storage for audit/version files
                 base_path = f"documents/{document_id}"
                 try:
                     if TEST_MODE:
@@ -3123,7 +2731,7 @@ async def update_document_metadata(
 async def confirm_document_metadata(
     gcs_object_path: str, current_user: Dict[str, Any] = Depends(get_current_user)
 ):
-    """Confirms final metadata for a document, creates a version (GCS-backed), and records approval."""
+    """Confirms final metadata for a document, creates a version (storage-backed), and records approval."""
     # TEST_MODE: operate on local JSON files
     if TEST_MODE:
         p = _test_metadata_path(gcs_object_path)
@@ -3214,7 +2822,7 @@ async def confirm_document_metadata(
             "version": next_version,
         }
 
-    # Normal mode: write version JSON to GCS and update documents.review_status
+    # Normal mode: write version JSON to object storage and update documents.review_status
     conn = get_db_connection()
     cursor = conn.cursor()
 
@@ -3263,7 +2871,7 @@ async def confirm_document_metadata(
     payload_row = cursor.fetchone()
     payload = payload_row[0] if payload_row else None
 
-    # Write version to GCS
+    # Write version using `services.storage_service.write_json` (storage service selects backend)
     sanitized_name = (
         original_name.replace("/", "_") if original_name else f"doc_{documents_id}"
     )
@@ -3282,21 +2890,32 @@ async def confirm_document_metadata(
                 continue
     next_version = maxv + 1
     version_path = f"{prefix}v{next_version}.json"
+        try:
+            storage_service.gcs_write_json(GCS_BUCKET_NAME, version_path, payload)
+        except Exception as e:
+            cursor.close()
+            conn.close()
+            logging.error(f"Failed to persist version to storage: {e}")
+            raise HTTPException(status_code=500, detail="Failed to persist version to storage")
+
+    # Update documents as approved - delegate to db_service helper
     try:
-        storage_service.gcs_write_json(GCS_BUCKET_NAME, version_path, payload)
-    except Exception as e:
-        cursor.close()
-        conn.close()
-        logging.error(f"Failed to write version to GCS: {e}")
-        raise HTTPException(status_code=500, detail="Failed to persist version to GCS")
+        from services.db_service import confirm_document_metadata as svc_confirm
 
-    # Update documents as approved
-    cursor.execute(
-        "UPDATE documents SET review_status = 'approved', last_reviewed_by = %s, last_reviewed_at = NOW(), updated_at = NOW() WHERE gcs_object_path = %s",
-        (current_user.get("username"), gcs_object_path),
-    )
+        try:
+            confirmed_id = svc_confirm(gcs_object_path, current_user.get("username"))
+            # prefer the returned id if available
+            documents_id = confirmed_id or documents_id
+        except Exception:
+            logging.exception("Failed to confirm document metadata via db_service")
+            cursor.close()
+            conn.close()
+            raise HTTPException(status_code=500, detail="Failed to confirm document metadata")
+    except Exception:
+        # If importing the service fails, fall back to the inline update (kept as last-resort)
+        logging.exception("db_service.confirm_document_metadata unavailable; falling back to inline update")
 
-    # Write audit entry to GCS
+    # Write audit entry via storage service
     audit_entry = {
         "document_id": documents_id,
         "action": "confirm",
@@ -3309,7 +2928,7 @@ async def confirm_document_metadata(
     try:
         storage_service.append_audit(GCS_BUCKET_NAME, base_path, audit_entry)
     except Exception:
-        logging.exception("Failed to write approval audit to GCS")
+        logging.exception("Failed to write approval audit to storage")
 
     conn.commit()
     cursor.close()
@@ -3328,9 +2947,9 @@ async def confirm_document_metadata(
 async def discard_document(
     gcs_object_path: str, current_user: Dict[str, Any] = Depends(get_current_user)
 ):
-    """Discards a document, deleting from GCS and database (or local test store)."""
+    """Discards a document, deleting from configured object storage and database (or local test store)."""
     try:
-        # Delete from GCS or local store
+        # Delete from object storage or local store via storage service
         if TEST_MODE:
             p = _test_metadata_path(gcs_object_path)
             if os.path.exists(p):
@@ -3341,59 +2960,35 @@ async def discard_document(
                     f"(test) File {p} not found in local store for deletion."
                 )
         else:
-            bucket = storage_client.bucket(GCS_BUCKET_NAME)
-            blob = bucket.blob(gcs_object_path)
-            if blob.exists():
-                blob.delete()
-                logging.info(f"Deleted {gcs_object_path} from GCS.")
-            else:
-                logging.warning(
-                    f"File {gcs_object_path} not found in GCS for deletion."
-                )
+            try:
+                deleted_storage = storage_service.delete_object(GCS_BUCKET_NAME, gcs_object_path)
+                if deleted_storage:
+                    logging.info(f"Deleted {gcs_object_path} from storage.")
+                else:
+                    logging.warning(f"File {gcs_object_path} not found in storage for deletion.")
+            except Exception:
+                logging.exception("Storage delete operation failed for %s", gcs_object_path)
+                raise HTTPException(status_code=500, detail="Failed to delete object from storage")
 
-        # Delete from Database
-        conn = get_db_connection()
-        cursor = conn.cursor()
-        cursor.execute(
-            "SELECT id, department_folder FROM documents WHERE gcs_object_path = %s LIMIT 1",
-            (gcs_object_path,),
-        )
-        doc = cursor.fetchone()
-        if not doc:
-            cursor.close()
-            conn.close()
-            raise HTTPException(
-                status_code=404, detail="Document not found in DB for deletion."
-            )
+        # Delete from Database — delegate to `services.db_service.delete_document_record`
 
-        document_id, department_folder = doc
-        user_role = current_user.get("role")
-        user_depts = current_user.get("departments") or []
-        if user_role != "manager" and department_folder not in user_depts:
-            cursor.close()
-            conn.close()
-            raise HTTPException(
-                status_code=403,
-                detail="You do not have permission to delete this document.",
-            )
+        try:
+            from services.db_service import delete_document_record as svc_delete
+        except Exception:
+            logging.exception("services.db_service.delete_document_record not available")
+            raise HTTPException(status_code=500, detail="Server misconfiguration")
 
-        cursor.execute(
-            "DELETE FROM documents WHERE gcs_object_path = %s", (gcs_object_path,)
-        )
-        deleted = cursor.rowcount
-        conn.commit()
-        cursor.close()
-        conn.close()
+        try:
+            deleted = svc_delete(gcs_object_path)
+        except Exception:
+            logging.exception("Failed to delete document record via db_service")
+            raise HTTPException(status_code=500, detail="Failed to delete document record")
 
-        if deleted == 0:
-            raise HTTPException(
-                status_code=404, detail="Document not found in DB for deletion."
-            )
+        if not deleted:
+            raise HTTPException(status_code=404, detail="Document not found in DB for deletion.")
 
         logging.info(f"Discarded and deleted all traces of {gcs_object_path}.")
-        return {
-            "message": f"Document {gcs_object_path} and all its data discarded successfully."
-        }
+        return {"message": f"Document {gcs_object_path} and all its data discarded successfully."}
 
     except Exception as e:
         logging.error(

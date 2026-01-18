@@ -154,7 +154,7 @@ if os.getenv("UNMOCK") != "1":
     )
 else:
     print(
-        "UNMOCK=1 set — running stress_endpoints without mocks (real GCS/DB/Vertex will be used)"
+        "UNMOCK=1 set — running stress_endpoints without mocks (real storage/DB/Vertex will be used)"
     )
 
 

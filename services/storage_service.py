@@ -10,9 +10,11 @@ from pypdf import PdfReader
 
 
 def gcs_write_json(bucket_name: str, path: str, obj: Any) -> None:
-    """Write JSON to storage via adapter, falling back to GCS client if available.
+    """Write JSON to storage via the configured storage adapter.
 
     Interface matches the helper used in `docintel-data-processor.main`.
+    This service relies on the storage adapter; it no longer attempts to
+    use cloud SDKs directly. If no adapter is available, a RuntimeError is raised.
     """
     try:
         from adapters.storage_adapter import get_storage_adapter
@@ -22,38 +24,18 @@ def gcs_write_json(bucket_name: str, path: str, obj: Any) -> None:
         adapter.write_json(object_name, obj)
         return
     except Exception:
-        # fallback to GCS if google storage client present
-        try:
-            from google import storage as gcs_storage  # type: ignore
-        except Exception:
-            gcs_storage = None
-
-        if gcs_storage:
-            try:
-                client = gcs_storage.Client()
-                bucket = client.bucket(bucket_name)
-                blob = bucket.blob(path)
-                blob.upload_from_string(
-                    json.dumps(obj, ensure_ascii=False, indent=2),
-                    content_type="application/json",
-                )
-                return
-            except Exception:
-                logging.exception("GCS upload failed")
-
-    logging.error(
-        f"No storage backend available for writing JSON to {bucket_name}/{path}"
-    )
-    raise RuntimeError("No storage backend available")
+        logging.exception("Storage adapter unavailable for write_json")
+        raise RuntimeError("No storage backend available; configure a storage adapter")
 
 
 def extract_text_from_pdf_gs_uri(gs_uri: str) -> str:
-    """Extract text from a PDF stored at a gs:// URI or local adapter path.
+    """Extract text from a PDF located via a storage adapter path or URI.
 
-    Returns extracted text or raises on failure.
+    This function uses the storage adapter to read bytes and then parses
+    the PDF. It no longer falls back to cloud SDKs directly.
     """
     try:
-        # parse gs://bucket/path
+        # parse object-storage URI if present
         if gs_uri.startswith("gs://"):
             _, rest = gs_uri.split("://", 1)
             parts = rest.split("/", 1)
@@ -64,27 +46,12 @@ def extract_text_from_pdf_gs_uri(gs_uri: str) -> str:
             name = gs_uri
 
         pdf_content = BytesIO()
-        # try local adapter first
-        try:
-            from adapters.storage_adapter import get_storage_adapter
+        from adapters.storage_adapter import get_storage_adapter
 
-            adapter = get_storage_adapter()
-            obj_name = f"{bucket}/{name}".lstrip("/")
-            data = adapter.read_bytes(obj_name)
-            pdf_content.write(data)
-        except Exception:
-            # fallback to GCS
-            try:
-                from google import storage as gcs_storage  # type: ignore
-
-                client = gcs_storage.Client()
-                bucket_obj = client.bucket(bucket)
-                blob = bucket_obj.blob(name)
-                data = blob.download_as_bytes()
-                pdf_content.write(data)
-            except Exception:
-                logging.exception("No storage backend available or download failed")
-                raise RuntimeError("No storage backend available")
+        adapter = get_storage_adapter()
+        obj_name = f"{bucket}/{name}".lstrip("/")
+        data = adapter.read_bytes(obj_name)
+        pdf_content.write(data)
 
         pdf_content.seek(0)
         reader = PdfReader(pdf_content)
@@ -93,14 +60,38 @@ def extract_text_from_pdf_gs_uri(gs_uri: str) -> str:
             text += (page.extract_text() or "") + "\n"
         return text
     except Exception as e:
-        logging.error(f"Failed to extract text from PDF: {e}", exc_info=True)
+        logging.exception("Failed to extract text from PDF via storage adapter: %s", e)
+        raise RuntimeError("Failed to extract text from PDF: no storage backend available")
+
+
+def extract_text_from_bytes(data: bytes, filename: Optional[str] = None) -> str:
+    """Extract text from uploaded bytes.
+
+    - If `filename` indicates a PDF (.pdf) the PDF is parsed via `PdfReader`.
+    - Otherwise data is decoded as UTF-8 text.
+
+    This consolidates upload-time text extraction into the storage service
+    so callers (including `main.py`) can delegate extraction logic.
+    """
+    try:
+        if filename and filename.lower().endswith('.pdf'):
+            reader = PdfReader(BytesIO(data))
+            text = ''
+            for page in reader.pages:
+                text += (page.extract_text() or '') + '\n'
+            return text
+        else:
+            return data.decode('utf-8')
+    except Exception:
+        logging.exception('Failed to extract text from bytes')
         raise
 
 
 def list_versions(bucket_name: str, prefix: str) -> List[str]:
-    """List object names under a prefix via adapter or GCS client.
+    """List object names under a prefix via the storage adapter.
 
-    Returns a list of object names (may be empty).
+    Returns a list of object names (may be empty). Raises RuntimeError if
+    no adapter is available.
     """
     try:
         from adapters.storage_adapter import get_storage_adapter
@@ -109,28 +100,12 @@ def list_versions(bucket_name: str, prefix: str) -> List[str]:
         full_prefix = f"{bucket_name}/{prefix}".lstrip("/")
         return adapter.list_objects(prefix=full_prefix)
     except Exception:
-        try:
-            from google import storage as gcs_storage  # type: ignore
-        except Exception:
-            gcs_storage = None
-
-        if gcs_storage:
-            try:
-                client = gcs_storage.Client()
-                bucket = client.bucket(bucket_name)
-                return [b.name for b in bucket.list_blobs(prefix=prefix)]
-            except Exception:
-                logging.exception("GCS list blobs failed")
-                return []
-
-        logging.error(
-            f"No storage backend available for listing blobs for {bucket_name}/{prefix}"
-        )
-        return []
+        logging.exception("Storage adapter unavailable for list_versions")
+        raise RuntimeError("No storage backend available for listing objects")
 
 
 def append_audit(bucket_name: str, base_path: str, entry: Any) -> None:
-    """Write an audit entry under `base_path/audit/` using `gcs_write_json`.
+    """Write an audit entry under `base_path/audit/` using the storage adapter.
 
     The filename is timestamped and suffixed with a random UUID.
     """
@@ -158,3 +133,19 @@ def read_json_path(path: str) -> Optional[Any]:
         return None
     with open(path, "r", encoding="utf-8") as f:
         return json.load(f)
+
+
+def delete_object(bucket_name: str, object_name: str) -> bool:
+    """Delete an object using the storage adapter.
+
+    Returns True on success. Raises RuntimeError if no adapter available.
+    """
+    try:
+        from adapters.storage_adapter import get_storage_adapter
+
+        adapter = get_storage_adapter()
+        obj_name = f"{bucket_name}/{object_name}".lstrip("/")
+        return adapter.delete_object(obj_name)
+    except Exception:
+        logging.exception("Storage adapter unavailable for delete_object")
+        raise RuntimeError("No storage backend available to delete object")
