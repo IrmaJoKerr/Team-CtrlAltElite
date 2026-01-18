@@ -25,6 +25,20 @@ spec = importlib.util.spec_from_file_location('docintel_main', MODULE_PATH)
 mod = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(mod)
 
+# Provide a deterministic fake embedding adapter when running mocked tests
+import types
+if os.getenv('UNMOCK') != '1':
+    fake_adapters_pkg = types.ModuleType('adapters')
+    fake_emb_mod = types.ModuleType('adapters.embedding_adapter')
+    def _fake_get_embeddings(texts):
+        # return a 3-dim deterministic vector per input
+        return [[0.01, 0.02, 0.03] for _ in texts]
+    fake_emb_mod.get_embeddings = _fake_get_embeddings
+    fake_adapters_pkg.embedding_adapter = fake_emb_mod
+    import sys
+    sys.modules['adapters'] = fake_adapters_pkg
+    sys.modules['adapters.embedding_adapter'] = fake_emb_mod
+
 
 class DummyResponse:
     def __init__(self, data, status_code=200):
