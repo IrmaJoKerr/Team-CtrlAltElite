@@ -29,11 +29,27 @@ DB_NAME = os.environ.get('DB_NAME', 'docintel_db')
 DB_SECRET_NAME = os.environ.get('SECRET_NAME', 'sop-db-password')
 
 def get_db_password() -> str:
-    """Retrieve password from Secret Manager."""
-    client = secretmanager.SecretManagerServiceClient()
-    name = f"projects/{PROJECT_ID}/secrets/{DB_SECRET_NAME}/versions/latest"
-    response = client.access_secret_version(request={"name": name})
-    return response.payload.data.decode("UTF-8")
+    """Retrieve DB password.
+
+    Preference order:
+      1. `DB_PASSWORD` environment variable (recommended for local-first)
+      2. Google Secret Manager (only if `DB_PASSWORD` not set and client available)
+
+    Raises RuntimeError if password cannot be obtained.
+    """
+    env_pw = os.environ.get('DB_PASSWORD')
+    if env_pw:
+        return env_pw
+
+    # Fallback to Secret Manager only if available and explicitly configured
+    try:
+        client = secretmanager.SecretManagerServiceClient()
+        name = f"projects/{PROJECT_ID}/secrets/{DB_SECRET_NAME}/versions/latest"
+        response = client.access_secret_version(request={"name": name})
+        return response.payload.data.decode("UTF-8")
+    except Exception as e:
+        logging.error("Failed to retrieve DB password from Secret Manager: %s", e)
+        raise RuntimeError("DB password not found in DB_PASSWORD env var and Secret Manager access failed")
 
 
 def get_connection():
