@@ -16,7 +16,7 @@ OUT_DIR.mkdir(parents=True, exist_ok=True)
 REPORT_PATH = ROOT / "report.txt"
 
 TESTS = [
-    ("smoke_test_vertex.py", "Smoke: Vertex unit test (mocked)"),
+    ("smoke_test_embedding_and_gen.py", "Smoke: Embedding & Generative unit test (mocked)"),
     ("stress_endpoints.py", "Stress: endpoints stress test (mocked)")
 ]
 
