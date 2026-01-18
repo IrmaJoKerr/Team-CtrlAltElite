@@ -40,10 +40,20 @@ import uuid
 from fastapi import FastAPI, Request, HTTPException, Depends, Header
 from fastapi.responses import HTMLResponse
 from fastapi.middleware.cors import CORSMiddleware
-from google.cloud import storage, pubsub_v1
-from google.oauth2 import service_account
-from google.auth.transport.requests import AuthorizedSession
-import google.auth
+try:
+    from google.cloud import storage, pubsub_v1
+except Exception:
+    storage = None
+    pubsub_v1 = None
+
+try:
+    from google.oauth2 import service_account
+    from google.auth.transport.requests import AuthorizedSession
+    import google.auth
+except Exception:
+    service_account = None
+    AuthorizedSession = None
+    google = None
 import psycopg2
 from psycopg2.extras import execute_values
 from pypdf import PdfReader # For PDF parsing
@@ -61,9 +71,19 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# GCP Clients
-storage_client = storage.Client()
-pubsub_publisher = pubsub_v1.PublisherClient() # For status updates or next steps
+# GCP Clients (optional)
+storage_client = None
+pubsub_publisher = None
+if storage is not None:
+    try:
+        storage_client = storage.Client()
+    except Exception:
+        storage_client = None
+if pubsub_v1 is not None:
+    try:
+        pubsub_publisher = pubsub_v1.PublisherClient()
+    except Exception:
+        pubsub_publisher = None
 
 # Vertex/Endpoint config (use endpoints created in Vertex UI)
 EMBEDDING_MODEL_ID = os.environ.get('EMBEDDING_MODEL_ID')  # e.g. text-embedding-004
@@ -235,13 +255,26 @@ def _test_version_dir(sanitized_name: str) -> str:
 
 def gcs_write_json(bucket_name: str, path: str, obj: Any) -> None:
     """Write a JSON object to GCS at the given path."""
+    # Prefer local adapter when available
     try:
-        bucket = storage_client.bucket(bucket_name)
-        blob = bucket.blob(path)
-        blob.upload_from_string(json.dumps(obj), content_type="application/json")
-    except Exception as e:
-        logging.error(f"Failed to write JSON to gs://{bucket_name}/{path}: {e}")
-        raise
+        from adapters.storage_adapter import get_storage_adapter
+        adapter = get_storage_adapter()
+        object_name = f"{bucket_name}/{path}"
+        adapter.write_json(object_name, obj)
+        return
+    except Exception:
+        # fallback to GCS if available
+        if storage_client:
+            try:
+                bucket = storage_client.bucket(bucket_name)
+                blob = bucket.blob(path)
+                blob.upload_from_string(json.dumps(obj), content_type="application/json")
+                return
+            except Exception as e:
+                logging.error(f"Failed to write JSON to gs://{bucket_name}/{path}: {e}")
+                raise
+        logging.error(f"No storage backend available for writing JSON to {bucket_name}/{path}")
+        raise RuntimeError("No storage backend available")
 
 
 def local_write_json(path: str, obj: Any) -> None:
@@ -262,10 +295,21 @@ def local_read_json(path: str) -> Optional[Any]:
 def gcs_list_versions(bucket_name: str, prefix: str) -> List[str]:
     """List blob names under a prefix and return list of names."""
     try:
-        bucket = storage_client.bucket(bucket_name)
-        return [b.name for b in bucket.list_blobs(prefix=prefix)]
-    except Exception as e:
-        logging.error(f"Failed to list blobs for gs://{bucket_name}/{prefix}: {e}")
+        from adapters.storage_adapter import get_storage_adapter
+        adapter = get_storage_adapter()
+        # adapter.list_objects returns names relative to documents/
+        full_prefix = f"{bucket_name}/{prefix}".lstrip('/')
+        objs = adapter.list_objects(prefix=full_prefix)
+        return objs
+    except Exception:
+        if storage_client:
+            try:
+                bucket = storage_client.bucket(bucket_name)
+                return [b.name for b in bucket.list_blobs(prefix=prefix)]
+            except Exception as e:
+                logging.error(f"Failed to list blobs for gs://{bucket_name}/{prefix}: {e}")
+                return []
+        logging.error(f"No storage backend available for listing blobs for {bucket_name}/{prefix}")
         return []
 
 
@@ -276,18 +320,45 @@ def gcs_append_audit(bucket_name: str, base_path: str, entry: Dict[str, Any]) ->
     path = f"{base_path}/audit/{ts}_{tid}.json"
     gcs_write_json(bucket_name, path, entry)
 
-def extract_text_from_pdf(gcs_blob) -> str:
-    """Extracts text from a PDF blob."""
+def extract_text_from_pdf_gs_uri(gs_uri: str) -> str:
+    """Extracts text from a PDF given a gs://bucket/path URI or local adapter path.
+
+    Falls back to GCS client if available.
+    """
     try:
+        # parse gs://bucket/path
+        if gs_uri.startswith('gs://'):
+            _, rest = gs_uri.split('://', 1)
+            parts = rest.split('/', 1)
+            bucket = parts[0]
+            name = parts[1] if len(parts) > 1 else ''
+        else:
+            # assume path relative to documents root
+            bucket = ''
+            name = gs_uri
+
         from io import BytesIO
         pdf_content = BytesIO()
-        gcs_blob.download_to_file(pdf_content)
-        pdf_content.seek(0)
+        # try local adapter first
+        try:
+            from adapters.storage_adapter import get_storage_adapter
+            adapter = get_storage_adapter()
+            obj_name = f"{bucket}/{name}".lstrip('/')
+            data = adapter.read_bytes(obj_name)
+            pdf_content.write(data)
+        except Exception:
+            # fallback to GCS
+            if storage_client:
+                blob = storage_client.bucket(bucket).blob(name)
+                blob.download_to_file(pdf_content)
+            else:
+                raise
 
+        pdf_content.seek(0)
         reader = PdfReader(pdf_content)
         text = ""
         for page in reader.pages:
-            text += page.extract_text() + "\n"
+            text += (page.extract_text() or '') + "\n"
         return text
     except Exception as e:
         logging.error(f"Failed to extract text from PDF: {e}", exc_info=True)
@@ -313,8 +384,19 @@ async def get_text_embeddings(texts: List[str]) -> List[List[float]]:
       - Vertex SDK available and `EMBEDDING_MODEL_ID` set -> use SDK
       - `EMBEDDING_ENDPOINT` set -> use REST predict endpoint
     """
+    # If an explicit EMBEDDING_PROVIDER is configured (stub/local/hosted) or
+    # no Vertex-style embedding config is present, prefer the local adapter.
+    provider_env = os.environ.get('EMBEDDING_PROVIDER', 'auto').lower()
+    if provider_env in ('stub', 'local', 'hosted') or not (EMBEDDING_ENDPOINT or EMBEDDING_MODEL_ID):
+        try:
+            from adapters.embedding_adapter import get_embeddings as _adapter_get_embeddings
+            # run sync embedder in thread to avoid blocking the event loop
+            return await asyncio.to_thread(_adapter_get_embeddings, texts)
+        except Exception:
+            logging.exception('Adapter-based embedding failed; falling back to configured Vertex endpoint')
+
     if not (EMBEDDING_ENDPOINT or EMBEDDING_MODEL_ID):
-        raise RuntimeError('No embedding configuration: set EMBEDDING_ENDPOINT or EMBEDDING_MODEL_ID')
+        raise RuntimeError('No embedding configuration: set EMBEDDING_ENDPOINT or EMBEDDING_MODEL_ID, or set EMBEDDING_PROVIDER')
 
     embeddings: List[List[float]] = []
     headers = get_auth_headers()

@@ -2,7 +2,11 @@ import os
 import json
 import functions_framework
 import logging
-from google.cloud import storage, secretmanager
+try:
+    from google.cloud import storage, secretmanager
+except Exception:
+    storage = None
+    secretmanager = None
 from google.cloud.sql.connector import Connector
 try:
     # Newer versions expose the RAG client here
@@ -17,9 +21,19 @@ except Exception:
 import pg8000.dbapi # Required for Connector to work with pg8000
 import uuid # For generating UUIDs for SOPs if needed
 
-# Initialize Google Cloud clients
-storage_client = storage.Client()
-secret_client = secretmanager.SecretManagerServiceClient()
+# Initialize Google Cloud clients (optional)
+storage_client = None
+secret_client = None
+if storage is not None:
+    try:
+        storage_client = storage.Client()
+    except Exception:
+        storage_client = None
+if secretmanager is not None:
+    try:
+        secret_client = secretmanager.SecretManagerServiceClient()
+    except Exception:
+        secret_client = None
 
 # --- Configuration from Environment Variables (set by Terraform) ---
 PROJECT_ID = os.environ.get("PROJECT_ID")
@@ -113,11 +127,19 @@ def process_sop_document(cloud_event):
 
     conn = None # Initialize conn to None
     try:
-        # 1. Download document from GCS (if needed for extraction)
-        # For simplicity, we'll just get content if we need to parse it here.
-        # Vertex AI RAG Engine can read directly from GCS.
-        blob = storage_client.bucket(bucket_name).blob(file_name)
-        file_content = blob.download_as_bytes()
+        # 1. Download document from storage (local adapter preferred, fallback to GCS)
+        file_content = None
+        try:
+            from adapters.storage_adapter import get_storage_adapter
+            adapter = get_storage_adapter()
+            obj_name = f"{bucket_name}/{file_name}".lstrip('/')
+            file_content = adapter.read_bytes(obj_name)
+        except Exception:
+            if storage_client:
+                blob = storage_client.bucket(bucket_name).blob(file_name)
+                file_content = blob.download_as_bytes()
+            else:
+                raise
 
         # 2. Extract Metadata
         sop_metadata = extract_sop_metadata(file_content, file_name)
