@@ -207,76 +207,81 @@ def local_read_json(path: str) -> Optional[Any]:
 
 
 def gcs_list_versions(bucket_name: str, prefix: str) -> List[str]:
-    """List blob names under a prefix and return list of names."""
+    """Delegate listing to `services.storage_service.list_versions`."""
     try:
-        from adapters.storage_adapter import get_storage_adapter
-        adapter = get_storage_adapter()
-        # adapter.list_objects returns names relative to documents/
-        full_prefix = f"{bucket_name}/{prefix}".lstrip('/')
-        objs = adapter.list_objects(prefix=full_prefix)
-        return objs
+        from services.storage_service import list_versions as _svc_list
+        return _svc_list(bucket_name, prefix)
     except Exception:
-        if storage_client:
-            try:
-                bucket = storage_client.bucket(bucket_name)
-                return [b.name for b in bucket.list_blobs(prefix=prefix)]
-            except Exception as e:
-                logging.error(f"Failed to list blobs for gs://{bucket_name}/{prefix}: {e}")
-                return []
-        logging.error(f"No storage backend available for listing blobs for {bucket_name}/{prefix}")
+        logging.exception('Delegated gcs_list_versions failed')
         return []
 
 
 def gcs_append_audit(bucket_name: str, base_path: str, entry: Dict[str, Any]) -> None:
-    """Append an audit entry by writing a timestamped JSON file under base_path/audit/."""
-    ts = datetime.now(timezone.utc).isoformat()
-    tid = uuid.uuid4().hex
-    path = f"{base_path}/audit/{ts}_{tid}.json"
-    gcs_write_json(bucket_name, path, entry)
+    """Delegate audit append to `services.storage_service.append_audit`."""
+    try:
+        from services.storage_service import append_audit as _svc_append
+        return _svc_append(bucket_name, base_path, entry)
+    except Exception:
+        logging.exception('Delegated gcs_append_audit failed')
+        # best-effort fallback to gcs_write_json
+        ts = datetime.now(timezone.utc).isoformat()
+        tid = uuid.uuid4().hex
+        path = f"{base_path}/audit/{ts}_{tid}.json"
+        return gcs_write_json(bucket_name, path, entry)
 
 def extract_text_from_pdf_gs_uri(gs_uri: str) -> str:
-    """Extracts text from a PDF given a gs://bucket/path URI or local adapter path.
+    """Delegate PDF text extraction to `services.storage_service.extract_text_from_pdf_gs_uri`.
 
-    Falls back to GCS client if available.
+    The original implementation lived here; it has been commented out below
+    and replaced by this thin wrapper so we can safely test removal.
     """
     try:
-        # parse gs://bucket/path
-        if gs_uri.startswith('gs://'):
-            _, rest = gs_uri.split('://', 1)
-            parts = rest.split('/', 1)
-            bucket = parts[0]
-            name = parts[1] if len(parts) > 1 else ''
-        else:
-            # assume path relative to documents root
-            bucket = ''
-            name = gs_uri
-
-        from io import BytesIO
-        pdf_content = BytesIO()
-        # try local adapter first
-        try:
-            from adapters.storage_adapter import get_storage_adapter
-            adapter = get_storage_adapter()
-            obj_name = f"{bucket}/{name}".lstrip('/')
-            data = adapter.read_bytes(obj_name)
-            pdf_content.write(data)
-        except Exception:
-            # fallback to GCS
-            if storage_client:
-                blob = storage_client.bucket(bucket).blob(name)
-                blob.download_to_file(pdf_content)
-            else:
-                raise
-
-        pdf_content.seek(0)
-        reader = PdfReader(pdf_content)
-        text = ""
-        for page in reader.pages:
-            text += (page.extract_text() or '') + "\n"
-        return text
-    except Exception as e:
-        logging.error(f"Failed to extract text from PDF: {e}", exc_info=True)
+        from services.storage_service import extract_text_from_pdf_gs_uri as _svc_extract
+        return _svc_extract(gs_uri)
+    except Exception:
+        logging.exception('Delegated extract_text_from_pdf_gs_uri failed')
         raise
+
+# Original implementation (commented out for safe verification):
+#
+#    try:
+#        # parse gs://bucket/path
+#        if gs_uri.startswith('gs://'):
+#            _, rest = gs_uri.split('://', 1)
+#            parts = rest.split('/', 1)
+#            bucket = parts[0]
+#            name = parts[1] if len(parts) > 1 else ''
+#        else:
+#            # assume path relative to documents root
+#            bucket = ''
+#            name = gs_uri
+#
+#        from io import BytesIO
+#        pdf_content = BytesIO()
+#        # try local adapter first
+#        try:
+#            from adapters.storage_adapter import get_storage_adapter
+#            adapter = get_storage_adapter()
+#            obj_name = f"{bucket}/{name}".lstrip('/')
+#            data = adapter.read_bytes(obj_name)
+#            pdf_content.write(data)
+#        except Exception:
+#            # fallback to GCS
+#            if storage_client:
+#                blob = storage_client.bucket(bucket).blob(name)
+#                blob.download_to_file(pdf_content)
+#            else:
+#                raise
+#
+#        pdf_content.seek(0)
+#        reader = PdfReader(pdf_content)
+#        text = ""
+#        for page in reader.pages:
+#            text += (page.extract_text() or '') + "\n"
+#        return text
+#    except Exception as e:
+#        logging.error(f"Failed to extract text from PDF: {e}", exc_info=True)
+#        raise
 
 def chunk_text(text: str, chunk_size: int = 1000, overlap: int = 100) -> List[str]:
     """Simple text chunking for demonstration."""
@@ -974,114 +979,38 @@ async def rag_query_structured(body: RagQueryRequest, current_user: Dict[str, An
         logging.exception('Failed to generate query embedding')
         raise HTTPException(status_code=500, detail='Embedding generation failed')
     
-    # 3. Vector search - ONLY ACTIVE SOP versions
-    conn = get_db_connection()
-    cursor = conn.cursor()
-    sources = []
-    raw_chunks = []
-    
+    # 3. Vector search — delegate to `services.rag_service` which centralizes
+    # embedding generation and DB search logic. We map the simpler snippet
+    # shape into the richer `sources` structure expected downstream.
     try:
-        # Join documents with chunk_sop_mapping and filter by active versions
-        # Fallback: if mapping table doesn't exist, query documents directly
-        try:
-            dept_filter = "AND d.department_folder = %s" if body.department else ""
-            params = [qvec_str]
-            if body.department:
-                params.append(body.department)
-            params.append(body.top_k)
-            
-            sql = f"""
-                SELECT 
-                    d.id as chunk_id,
-                    d.chunk_content,
-                    d.gcs_object_path,
-                    d.department_folder,
-                    d.final_title,
-                    csm.sop_id,
-                    csm.sop_version_id,
-                    csm.section_number,
-                    csm.is_procedural_step,
-                    sv.status as version_status,
-                    s.title as sop_title,
-                    1 - (d.embedding_vector <-> %s::vector) as relevance_score
-                FROM documents d
-                LEFT JOIN chunk_sop_mapping csm ON d.id = csm.chunk_id
-                LEFT JOIN sop_versions sv ON csm.sop_version_id = sv.version_id
-                LEFT JOIN sops s ON csm.sop_id = s.sop_id
-                WHERE d.embedding_vector IS NOT NULL
-                  AND (sv.status = 'active' OR sv.status IS NULL)
-                  {dept_filter}
-                ORDER BY d.embedding_vector <-> %s::vector
-                LIMIT %s
-            """
-            # Need qvec_str twice
-            params_full = [qvec_str]
-            if body.department:
-                params_full.append(body.department)
-            params_full.extend([qvec_str, body.top_k])
-            cursor.execute(sql, tuple(params_full))
-            rows = cursor.fetchall()
-            
-        except Exception as e:
-            # Fallback: simple query without mapping tables
-            logging.warning(f"chunk_sop_mapping query failed, using fallback: {e}")
-            dept_filter = "WHERE d.department_folder = %s" if body.department else ""
-            params = []
-            if body.department:
-                params.append(body.department)
-            params.extend([qvec_str, body.top_k])
-            
-            sql = f"""
-                SELECT 
-                    d.id as chunk_id,
-                    d.chunk_content,
-                    d.gcs_object_path,
-                    d.department_folder,
-                    d.final_title,
-                    NULL as sop_id,
-                    NULL as sop_version_id,
-                    NULL as section_number,
-                    FALSE as is_procedural_step,
-                    'unknown' as version_status,
-                    d.final_title as sop_title,
-                    1 - (d.embedding_vector <-> %s::vector) as relevance_score
-                FROM documents d
-                {dept_filter}
-                {"AND" if body.department else "WHERE"} d.embedding_vector IS NOT NULL
-                ORDER BY d.embedding_vector <-> %s::vector
-                LIMIT %s
-            """
-            params_full = []
-            if body.department:
-                params_full.append(body.department)
-            params_full.extend([qvec_str, qvec_str, body.top_k])
-            cursor.execute(sql, tuple(params_full))
-            rows = cursor.fetchall()
-        
-        for row in rows:
-            chunk_id, content, gcs_path, dept, title, sop_id, version_id, section, is_proc, ver_status, sop_title, rel_score = row
+        from services.rag_service import run_rag_query
+        result = await run_rag_query(body.query, body.department, body.top_k)
+        snippets = result.get('snippets', [])
+
+        sources = []
+        raw_chunks = []
+        for idx, s in enumerate(snippets):
+            snippet_text = s.get('snippet') or ''
+            chunk_id = s.get('path') or f'auto-{idx}'
+            sources.append({
+                'sop_title': None,
+                'sop_id': None,
+                'version_id': None,
+                'version_status': 'unknown',
+                'chunk_id': chunk_id,
+                'section_number': None,
+                'snippet': snippet_text[:400],
+                'relevance_score': float(s.get('relevance_score', 0.5))
+            })
             raw_chunks.append({
                 'id': chunk_id,
-                'chunk_content': content,
-                'sop_version_id': version_id,
-                'sop_id': sop_id
+                'chunk_content': snippet_text,
+                'sop_version_id': None,
+                'sop_id': None
             })
-            sources.append({
-                'sop_title': sop_title or title,
-                'sop_id': sop_id,
-                'version_id': version_id,
-                'version_status': ver_status or 'unknown',
-                'chunk_id': chunk_id,
-                'section_number': section,
-                'snippet': (content or '')[:400],
-                'relevance_score': float(rel_score) if rel_score else 0.5
-            })
-    
     except Exception:
-        logging.exception('RAG query database search failed')
-        raise HTTPException(status_code=500, detail='Database search failed')
-    finally:
-        cursor.close()
+        logging.exception('RAG orchestration failed')
+        raise HTTPException(status_code=500, detail='RAG query failed')
     
     # 4. Check coverage
     if not sources:
