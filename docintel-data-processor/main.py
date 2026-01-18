@@ -9,15 +9,7 @@ import threading
 from concurrent.futures import ThreadPoolExecutor
 import httpx
 
-# Local-first: remove hosted GenAI/Vertex dependencies. Use adapters where available.
-_GENAI_AVAILABLE = False
-_GENAI_CLIENT = None
-_VERTEX_SDK_AVAILABLE = False
-genai = None
-types = None
-vertexai = None
-TextEmbeddingModel = None
-GenerativeModel = None
+# Local-first: generative/Vertex SDKs removed. Use adapters where available.
 from datetime import datetime, timezone, timedelta
 import uuid
 
@@ -66,9 +58,7 @@ GENERATIVE_MODEL_ID = os.environ.get('GENERATIVE_MODEL_ID')  # e.g. gemini-2.5-p
 EMBEDDING_ENDPOINT = os.environ.get('EMBEDDING_ENDPOINT')  # e.g. projects/PROJECT/locations/us-west1/endpoints/EMBEDDING_ID
 GENERATIVE_ENDPOINT = os.environ.get('GENERATIVE_ENDPOINT')  # e.g. projects/PROJECT/locations/us-west1/endpoints/GEN_ID
 
-# Lazy SDK model holders (initialized on first use)
-_EMBEDDING_MODEL = None
-_GENERATIVE_MODEL = None
+# No lazy SDK models in local-first design; adapters should provide models.
 
 # Authorized HTTP session (lazy)
 _AUTH_SESSION = None
@@ -125,13 +115,27 @@ TEST_MODE = os.environ.get('TEST_MODE', '').lower() in ('1', 'true', 'yes')
 DB_HOST = os.environ.get('DB_HOST')
 DB_USER = os.environ.get('DB_USER', 'postgres')
 DB_NAME = os.environ.get('DB_NAME', 'docintel_db')
-DB_PASSWORD = os.environ.get('DB_PASSWORD', '1234')  # Use environment variable only
+# prefer DB_PASSWORD from env; if absent and running in cloud mode, use secrets adapter
+DB_PASSWORD = os.environ.get('DB_PASSWORD')
 DISABLE_AUTH = os.environ.get('DISABLE_AUTH', 'false').lower() in ('1', 'true', 'yes')
+
+# Runtime mode: prefer explicit MODE env var for services (must be 'local' or 'cloud')
+MODE = os.environ.get('MODE')
+if MODE is not None and MODE not in ('local', 'cloud'):
+    raise RuntimeError('Invalid MODE. Set MODE=local or MODE=cloud')
+CLOUD_MODE = True if MODE == 'cloud' else False
 
 # --- Helper Functions ---
 
 def get_db_connection():
-    """Establishes and returns a PostgreSQL database connection."""
+    """Establishes and returns a PostgreSQL database connection.
+
+    Behavior:
+    - If `DB_PASSWORD` env var is present, use it (local-first).
+    - Otherwise, if `MODE=cloud`, attempt to obtain DB password via
+      the secrets adapter (adapters.secrets_adapter.get_db_password).
+    - Otherwise raise a clear error explaining how to run the service.
+    """
     try:
         # If DB_HOST is not set, allow connecting via Cloud SQL unix socket
         host = DB_HOST
@@ -139,10 +143,22 @@ def get_db_connection():
         if not host and cloud_sql_conn_name:
             host = f"/cloudsql/{cloud_sql_conn_name}"
 
+        pw = DB_PASSWORD
+        if not pw:
+            if CLOUD_MODE:
+                try:
+                    from adapters.secrets_adapter import get_db_password
+                    pw = get_db_password(cloud_mode=True, config=None)
+                except Exception as e:
+                    logging.error('Failed to obtain DB password from secrets adapter: %s', e)
+                    raise RuntimeError('Cloud mode selected but DB password unavailable. Set --secret-provider or SECRET_PROVIDER env var, or set DB_PASSWORD env.')
+            else:
+                raise RuntimeError('DB_PASSWORD not set. Set DB_PASSWORD in the environment or run with MODE=cloud and configure a secret provider.')
+
         conn = psycopg2.connect(
             host=host,
             user=DB_USER,
-            password=DB_PASSWORD,
+            password=pw,
             dbname=DB_NAME
         )
         return conn
@@ -551,197 +567,14 @@ async def shutdown_event():
 
 
 async def get_ai_metadata_suggestions(document_text: str) -> Dict[str, Any]:
-    """Uses Vertex AI Generative Model to suggest metadata."""
-    prompt = f"""
-    You are an expert in banking SOPs and policy documents. Analyze the following document text and provide non-binding suggestions for the following fields:
-    - Title
-    - Department (e.g., "Operations", "Compliance", "Finance", "HR", "IT")
-    - ProcessType (e.g., "Risk Assessment", "Customer Onboarding", "Transaction Monitoring", "Incident Management", "Account Opening")
-    - Status (e.g., "Draft", "Active", "Deprecated", "Under Review")
-
-    For each field, provide a 'suggested_value' and a brief 'justification' (1-2 sentences) based on the document's content.
-    Also, provide a 'confidence_score' between 0.0 and 1.0 for each suggestion.
-    Format your response as a JSON object.
-
-    Document Text:
-    ---
-    {document_text[:5000]} # Limit text length for prompt token limits
-    ---
-
-    Example JSON response format:
-    {{
-      "title": {{"suggested_value": "...", "justification": "...", "confidence_score": 0.X}},
-      "department": {{"suggested_value": "...", "justification": "...", "confidence_score": 0.X}},
-      "process_type": {{"suggested_value": "...", "justification": "...", "confidence_score": 0.X}},
-      "status": {{"suggested_value": "...", "justification": "...", "confidence_score": 0.X}}
-    }}
-    """
-
-    # If no model or endpoint configured, return safe defaults
-    if not (GENERATIVE_MODEL_ID or GENERATIVE_ENDPOINT):
-        logging.warning('No generative model or endpoint configured; skipping AI metadata suggestions')
-        return {
-            "title": {"suggested_value": None, "justification": "No generative endpoint configured.", "confidence_score": 0.0},
-            "department": {"suggested_value": None, "justification": "No generative endpoint configured.", "confidence_score": 0.0},
-            "process_type": {"suggested_value": None, "justification": "No generative endpoint configured.", "confidence_score": 0.0},
-            "status": {"suggested_value": None, "justification": "No generative endpoint configured.", "confidence_score": 0.0}
-        }
-
-    headers = get_auth_headers()
-    try:
-        data = None
-
-        # Try GenAI SDK-based call first if available
-        if _GENAI_AVAILABLE and GENERATIVE_MODEL_ID:
-            async def _sdk_gen_call_async():
-                global _GENAI_CLIENT
-                if _GENAI_CLIENT is None:
-                    _GENAI_CLIENT = genai.Client(vertexai=True, project=PROJECT_ID, location=REGION)
-                try:
-                    # use async client for generation
-                    resp = await _GENAI_CLIENT.aio.models.generate_content(model=GENERATIVE_MODEL_ID, contents=prompt, config=types.GenerateContentConfig(max_output_tokens=1024))
-                    # prefer resp.text convenience
-                    text = getattr(resp, 'text', None)
-                    if text:
-                        return text
-                    # fallback parse
-                    cand = getattr(resp, 'candidates', None)
-                    if cand and len(cand) > 0:
-                        first = cand[0]
-                        content = getattr(first, 'content', None)
-                        if content:
-                            parts = getattr(content, 'parts', None) or (content if isinstance(content, list) else None)
-                            if parts and len(parts) > 0:
-                                part0 = parts[0]
-                                text = getattr(part0, 'text', None) or (part0 if isinstance(part0, str) else None)
-                                if text:
-                                    return text
-                    return str(resp)
-                except Exception:
-                    logging.exception('GenAI SDK generative call failed; will fall back to REST')
-                    raise
-
-            try:
-                text_response = await _sdk_gen_call_async()
-                data = {'predictions': [{'content': text_response}]}
-            except Exception:
-                data = None
-            # fallback: if genai not available or failed, try legacy vertexai SDK
-            if data is None and _VERTEX_SDK_AVAILABLE and GENERATIVE_MODEL_ID:
-                try:
-                    def _vertex_gen_call():
-                        global _GENERATIVE_MODEL
-                        if _GENERATIVE_MODEL is None:
-                            vertexai.init(project=PROJECT_ID, location=REGION)
-                            _GENERATIVE_MODEL = GenerativeModel(GENERATIVE_MODEL_ID)
-                        resp = _GENERATIVE_MODEL.generate_content([prompt], generation_config={"max_output_tokens": 1024})
-                        # parse as before
-                        try:
-                            cand = getattr(resp, 'candidates', None)
-                            if cand and len(cand) > 0:
-                                first = cand[0]
-                                content = getattr(first, 'content', None)
-                                if content:
-                                    parts = getattr(content, 'parts', None) or (content if isinstance(content, list) else None)
-                                    if parts and len(parts) > 0:
-                                        part0 = parts[0]
-                                        text = getattr(part0, 'text', None) or (part0 if isinstance(part0, str) else None)
-                                        if text:
-                                            return text
-                            text = getattr(resp, 'text', None)
-                            if isinstance(text, str):
-                                return text
-                        except Exception:
-                            logging.exception('Failed to parse Vertex SDK gen response')
-                        return str(resp)
-
-                    text_response = await asyncio.to_thread(_vertex_gen_call)
-                    data = {'predictions': [{'content': text_response}]}
-                except Exception:
-                    logging.exception('Vertex SDK generative call failed; falling back to REST predict')
-
-        # Fallback to REST predict if SDK not used or failed
-        if data is None:
-            if GENERATIVE_MODEL_ID:
-                model_part = GENERATIVE_MODEL_ID
-                if model_part.startswith('projects/'):
-                    url = f"https://{REGION}-aiplatform.googleapis.com/v1/{model_part}:predict"
-                else:
-                    url = f"https://{REGION}-aiplatform.googleapis.com/v1/projects/{PROJECT_ID}/locations/{REGION}/models/{model_part}:predict"
-            elif GENERATIVE_ENDPOINT:
-                url = f"https://{REGION}-aiplatform.googleapis.com/v1/{GENERATIVE_ENDPOINT}:predict"
-            else:
-                raise RuntimeError('No GENERATIVE_MODEL_ID or GENERATIVE_ENDPOINT configured')
-
-            try:
-                payload = {"instances": [{"content": prompt}]}
-                resp = await async_post_with_retries(url, json=payload, headers=headers, timeout=(5.0, 120.0), retries=3, backoff_factor=1.0)
-                data = resp.json()
-            except httpx.ReadTimeout:
-                logging.exception('Generative model request timed out')
-                raise asyncio.TimeoutError('Generative model request timed out')
-        # Try to extract a textual response from common response shapes
-        text_response = None
-        preds = data.get('predictions') or data.get('outputs') or []
-        if isinstance(preds, list) and len(preds) > 0:
-            first = preds[0]
-            if isinstance(first, dict):
-                # common keys to check
-                for k in ('content','text','output','generated_text','candidates'):
-                    if k in first:
-                        if k == 'candidates' and isinstance(first[k], list) and len(first[k])>0:
-                            cand = first[k][0]
-                            # candidate may have 'content' or 'text'
-                            if isinstance(cand, dict):
-                                text_response = cand.get('content') or cand.get('text')
-                            else:
-                                text_response = str(cand)
-                            break
-                        else:
-                            val = first[k]
-                            if isinstance(val, str):
-                                text_response = val
-                                break
-                            elif isinstance(val, dict) and 'text' in val:
-                                text_response = val['text']
-                                break
-            elif isinstance(first, str):
-                text_response = first
-
-        if not text_response:
-            # As final fallback, try to stringify the first prediction
-            if isinstance(preds, list) and len(preds) > 0:
-                text_response = json.dumps(preds[0])
-
-        # strip fences
-        if isinstance(text_response, str) and text_response.startswith("```json"):
-            end = text_response.rfind("```")
-            if end != -1:
-                text_response = text_response[7:end]
-            else:
-                text_response = text_response[7:]
-
-        parsed = {}
-        try:
-            parsed = json.loads(text_response) if text_response else {}
-        except Exception:
-            logging.exception('Failed to parse JSON from generative response')
-            return {
-                "title": {"suggested_value": None, "justification": "AI parsing failed.", "confidence_score": 0.0},
-                "department": {"suggested_value": None, "justification": "AI parsing failed.", "confidence_score": 0.0},
-                "process_type": {"suggested_value": None, "justification": "AI parsing failed.", "confidence_score": 0.0},
-                "status": {"suggested_value": None, "justification": "AI parsing failed.", "confidence_score": 0.0}
-            }
-
-        return parsed
-    except Exception as e:
-        logging.error(f"Failed to get AI metadata suggestions: {e}", exc_info=True)
-        return {
-            "title": {"suggested_value": None, "justification": "AI extraction failed.", "confidence_score": 0.0},
-            "department": {"suggested_value": None, "justification": "AI extraction failed.", "confidence_score": 0.0},
-            "process_type": {"suggested_value": None, "justification": "AI extraction failed.", "confidence_score": 0.0},
-            "status": {"suggested_value": None, "justification": "AI extraction failed.", "confidence_score": 0.0}
-        }
+    # Local-first stub: generative/Vertex SDK removed. Return safe defaults.
+    logging.info('Generative metadata suggestions are disabled in local-first mode; returning defaults')
+    return {
+        "title": {"suggested_value": None, "justification": "Generative features disabled.", "confidence_score": 0.0},
+        "department": {"suggested_value": None, "justification": "Generative features disabled.", "confidence_score": 0.0},
+        "process_type": {"suggested_value": None, "justification": "Generative features disabled.", "confidence_score": 0.0},
+        "status": {"suggested_value": None, "justification": "Generative features disabled.", "confidence_score": 0.0}
+    }
 
 
 @app.post('/rag-query')

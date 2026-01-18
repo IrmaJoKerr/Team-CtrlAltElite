@@ -27,21 +27,16 @@ DB_USER = os.environ.get('DB_USER', 'postgres')
 DB_NAME = os.environ.get('DB_NAME', 'docintel_db')
 PROJECT_ID = os.environ.get('PROJECT_ID')
 
-def get_db_password() -> str:
-    """Return DB password from `DB_PASSWORD` env or raise.
+from adapters.secrets_adapter import get_db_password
 
-    This script is local-first: provide `DB_PASSWORD` in the environment.
+
+def get_connection(config=None):
+    """Establish database connection.
+
+    Accepts a `Config` object to determine cloud-mode and secret provider.
     """
-    env_pw = os.environ.get('DB_PASSWORD')
-    if env_pw:
-        return env_pw
-
-    raise RuntimeError("DB password not found. Set DB_PASSWORD in the environment.")
-
-
-def get_connection():
-    """Establish database connection."""
-    password = get_db_password()
+    cloud_mode = getattr(config, 'cloud_mode', False) if config is not None else False
+    password = get_db_password(cloud_mode=cloud_mode, config=config)
     return psycopg2.connect(
         host=DB_HOST,
         user=DB_USER,
@@ -217,12 +212,21 @@ def backfill_mappings(conn, dry_run: bool = False):
 
 
 def main():
-    dry_run = '--dry-run' in sys.argv
+    from utils.cli import build_parser, get_effective_config
+
+    parser = build_parser()
+    parser.add_argument('--dry-run', action='store_true')
+    ns = parser.parse_args()
+
+    cfg = get_effective_config()
+    cloud_mode = getattr(cfg, 'cloud_mode', False)
+    dry_run = ns.dry_run or getattr(cfg, 'simulate', True)
+
     if dry_run:
         logging.info("DRY RUN MODE - no changes will be made")
-    
+
     try:
-        conn = get_connection()
+        conn = get_connection(cloud_mode=cloud_mode)
         backfill_mappings(conn, dry_run=dry_run)
         conn.close()
     except Exception as e:

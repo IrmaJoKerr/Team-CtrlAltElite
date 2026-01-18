@@ -11,8 +11,15 @@ REGION = os.environ.get("REGION")
 DB_HOST = os.environ.get("DB_HOST")
 DB_NAME = os.environ.get("DB_NAME")
 DB_USER = os.environ.get("DB_USER")
+# prefer DB_PASSWORD from env; if absent and running in cloud mode, secrets adapter will be used
 DB_PASSWORD = os.environ.get("DB_PASSWORD")
 STORAGE_ROOT = os.environ.get('STORAGE_ROOT')
+
+# Runtime mode: optional but if provided must be 'local' or 'cloud'
+MODE = os.environ.get('MODE')
+if MODE is not None and MODE not in ('local', 'cloud'):
+    raise RuntimeError('Invalid MODE. Set MODE=local or MODE=cloud')
+CLOUD_MODE = True if MODE == 'cloud' else False
 
 logging.basicConfig(level=logging.INFO)
 
@@ -21,11 +28,21 @@ def get_connection():
 
     Requires `DB_PASSWORD` to be set in the environment for local-first operation.
     """
-    if not DB_PASSWORD:
-        logging.error('DB_PASSWORD not set; cannot connect to database')
-        raise RuntimeError('DB_PASSWORD not set')
+    pw = DB_PASSWORD
+    if not pw:
+        if CLOUD_MODE:
+            try:
+                from adapters.secrets_adapter import get_db_password
+                pw = get_db_password(cloud_mode=True, config=None)
+            except Exception as e:
+                logging.error('Failed to obtain DB password from secrets adapter: %s', e)
+                raise RuntimeError('Cloud mode selected but DB password unavailable. Set --secret-provider or SECRET_PROVIDER env var, or set DB_PASSWORD env.')
+        else:
+            logging.error('DB_PASSWORD not set; cannot connect to database')
+            raise RuntimeError('DB_PASSWORD not set')
+
     try:
-        conn = psycopg2.connect(host=DB_HOST, user=DB_USER, password=DB_PASSWORD, dbname=DB_NAME)
+        conn = psycopg2.connect(host=DB_HOST, user=DB_USER, password=pw, dbname=DB_NAME)
         return conn
     except Exception as e:
         logging.error(f"Failed to connect to database: {e}", exc_info=True)

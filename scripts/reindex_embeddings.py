@@ -24,18 +24,15 @@ DB_USER = os.environ.get('DB_USER', 'postgres')
 DB_NAME = os.environ.get('DB_NAME', 'docintel_db')
 DB_PASSWORD = os.environ.get('DB_PASSWORD')
 
-def get_db_password() -> str:
-    env_pw = os.environ.get('DB_PASSWORD')
-    if env_pw:
-        return env_pw
-    logging.error('DB password not found. Set DB_PASSWORD in the environment.')
-    sys.exit(1)
+from adapters.secrets_adapter import get_db_password
 
 import psycopg2
 
 
-def connect():
-    pw = get_db_password()
+def connect(config=None):
+    # config: utils.config.Config or object with cloud_mode/secret_provider
+    cloud_mode = getattr(config, 'cloud_mode', False) if config is not None else False
+    pw = get_db_password(cloud_mode=cloud_mode, config=config)
     return psycopg2.connect(host=DB_HOST, user=DB_USER, password=pw, dbname=DB_NAME)
 
 
@@ -45,15 +42,28 @@ def chunked(iterable, n):
 
 
 def main():
-    parser = argparse.ArgumentParser(description='Reindex document embeddings')
-    parser.add_argument('--batch-size', type=int, default=int(os.environ.get('REINDEX_BATCH_SIZE', '100')))
+    from utils.cli import build_parser
+
+    parser = build_parser()
     parser.add_argument('--force', action='store_true', help='Recompute embeddings for all documents')
     parser.add_argument('--dry-run', action='store_true')
-    args = parser.parse_args()
+    ns = parser.parse_args()
 
-    batch_size = args.batch_size
-    force = args.force
-    dry_run = args.dry_run
+    cfg = None
+    try:
+        from utils.cli import get_effective_config
+        cfg = get_effective_config()
+    except Exception:
+        # fallback: build from parsed namespace
+        class _F:
+            mode = getattr(ns, 'mode', 'local')
+            simulate = ns.__dict__.get('dry_run', True)
+            cloud_mode = True if mode == 'cloud' else False
+        cfg = _F()
+
+    batch_size = ns.batch_size
+    force = ns.force
+    dry_run = ns.dry_run or getattr(cfg, 'simulate', True)
 
     logging.info(f"Reindex embeddings: batch_size={batch_size} force={force} dry_run={dry_run}")
 
@@ -68,7 +78,7 @@ def main():
             logging.error('Failed to import embedding adapter: %s', e)
             sys.exit(1)
 
-    conn = connect()
+    conn = connect(cloud_mode=getattr(cfg, 'cloud_mode', False))
     cur = conn.cursor()
 
     total_processed = 0

@@ -32,12 +32,7 @@ DB_USER = os.environ.get('DB_USER', 'postgres')
 DB_NAME = os.environ.get('DB_NAME', 'docintel_db')
 DB_PASSWORD = os.environ.get('DB_PASSWORD')
 
-def get_db_password() -> str:
-    env_pw = os.environ.get('DB_PASSWORD')
-    if env_pw:
-        return env_pw
-    logging.error('DB password not set. Set DB_PASSWORD in the environment to run DB-backed syncs.')
-    return None
+from adapters.secrets_adapter import get_db_password
 
 QDRANT_URL = os.environ.get('QDRANT_URL', 'http://localhost:6333')
 QDRANT_COLLECTION = os.environ.get('QDRANT_COLLECTION', 'documents')
@@ -171,18 +166,22 @@ def mark_synced(conn, ids: List[int]):
 
 
 def main():
-    parser = argparse.ArgumentParser(description='Sync embeddings to Qdrant')
+    from utils.cli import build_parser, get_effective_config
+
+    parser = build_parser()
     parser.add_argument('--batch-size', type=int, default=50)
     parser.add_argument('--once', action='store_true')
     parser.add_argument('--dry-run', action='store_true')
     parser.add_argument('--simulate', action='store_true', help='Use local_test_store fixtures instead of DB')
-    args = parser.parse_args()
+    ns = parser.parse_args()
 
-    batch_size = args.batch_size
-    dry_run = args.dry_run
-    simulate = args.simulate
+    cfg = get_effective_config()
+    batch_size = ns.batch_size
+    dry_run = ns.dry_run or getattr(cfg, 'simulate', False)
+    simulate = ns.simulate or getattr(cfg, 'simulate', False)
+    cloud_mode = getattr(cfg, 'cloud_mode', False)
 
-    logging.info('Starting sync_outbox_to_qdrant (simulate=%s dry_run=%s batch=%d)', simulate, dry_run, batch_size)
+    logging.info('Starting sync_outbox_to_qdrant (mode=%s simulate=%s dry_run=%s batch=%d)', getattr(cfg, 'mode', None), simulate, dry_run, batch_size)
 
     if simulate:
         rows = fetch_batch_from_local_test_store(batch_size)
@@ -211,14 +210,17 @@ def main():
         return
 
     # real run path
-    if psycopg2 is None:
-        logging.error('psycopg2 not available; cannot run against DB')
-        return
-    pw = get_db_password()
-    if not pw:
-        return
+    if not simulate:
+        if psycopg2 is None:
+            logging.error('psycopg2 not available; cannot run against DB')
+            return
+        try:
+            pw = get_db_password(cloud_mode=cloud_mode, config=cfg)
+        except Exception as e:
+            logging.error('Failed to obtain DB password: %s', e)
+            return
 
-    conn = psycopg2.connect(host=DB_HOST, user=DB_USER, password=pw, dbname=DB_NAME)
+        conn = psycopg2.connect(host=DB_HOST, user=DB_USER, password=pw, dbname=DB_NAME)
     try:
         locked = acquire_advisory_lock(conn)
         if not locked:
@@ -251,7 +253,7 @@ def main():
                 logging.error('Failed to upsert points to Qdrant; aborting')
                 break
 
-            if args.once:
+            if ns.once:
                 break
 
     finally:
