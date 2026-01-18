@@ -33,6 +33,7 @@ DB_NAME = os.environ.get('DB_NAME', 'docintel_db')
 DB_PASSWORD = os.environ.get('DB_PASSWORD')
 
 from adapters.secrets_adapter import get_db_password
+from services.db_sync_service import acquire_advisory_lock, release_advisory_lock, fetch_batch_from_db, mark_synced
 
 QDRANT_URL = os.environ.get('QDRANT_URL', 'http://localhost:6333')
 QDRANT_COLLECTION = os.environ.get('QDRANT_COLLECTION', 'documents')
@@ -129,31 +130,13 @@ def fetch_batch_from_local_test_store(batch_size: int) -> List[Dict[str, Any]]:
 
 
 def upsert_points_to_qdrant(points: List[Dict[str, Any]], collection: str, qdrant_url: str, dry_run: bool = False) -> bool:
-    if dry_run:
-        logging.info('[DRY RUN] Would upsert %d points to Qdrant collection %s at %s', len(points), collection, qdrant_url)
-        for p in points[:5]:
-            logging.info('  sample point id=%s meta=%s vector_len=%s', p.get('id'), {k: p.get('payload', {}).get(k) for k in ('title','department')}, len(p.get('vector') or []))
-        return True
-
-    url = qdrant_url.rstrip('/') + f'/collections/{collection}/points?wait=true'
-    payload = {'points': []}
-    for p in points:
-        payload['points'].append({'id': p['id'], 'vector': p['vector'], 'payload': p.get('payload', {})})
-
-    # retry on network errors
-    attempts = 3
-    backoff = 0.5
-    for attempt in range(1, attempts + 1):
-        try:
-            resp = requests.put(url, json=payload, timeout=30)
-            if resp.status_code in (200, 201):
-                return True
-            logging.error('Qdrant upsert failed: %s %s', resp.status_code, resp.text)
-        except Exception as e:
-            logging.exception('Qdrant request failed (attempt %d): %s', attempt, e)
-        time.sleep(backoff)
-        backoff *= 2
-    return False
+    # Delegate to qdrant adapter for network logic, retries, and dry-run handling
+    try:
+        from adapters.qdrant_adapter import upsert_points as _adapter_upsert
+        return _adapter_upsert(points, collection, qdrant_url, dry_run=dry_run)
+    except Exception:
+        logging.exception('Qdrant adapter failed')
+        return False
 
 
 def mark_synced(conn, ids: List[int]):
@@ -167,6 +150,7 @@ def mark_synced(conn, ids: List[int]):
 
 def main():
     from utils.cli import build_parser, get_effective_config
+    from services.sync_outbox_service import SyncOutboxService, build_points_from_local
 
     parser = build_parser()
     parser.add_argument('--batch-size', type=int, default=50)
@@ -191,18 +175,18 @@ def main():
         # try to compute vectors using embedding adapter if available
         try:
             from adapters.embedding_adapter import get_embeddings
-            texts = [r['content'] or '' for r in rows]
-            vectors = get_embeddings(texts)
-            for r, v in zip(rows, vectors):
-                r['vector'] = v
+            points = build_points_from_local(rows, get_embeddings)
         except Exception:
             logging.exception('Failed to generate embeddings for simulated rows; leaving vectors None')
+            points = [{'id': r['id'], 'vector': r.get('vector'), 'payload': {'title': r.get('title'), 'department': r.get('department'), 'gcs_path': r.get('gcs_path')}} for r in rows]
 
-        points = []
-        for r in rows:
-            points.append({'id': r['id'], 'vector': r['vector'], 'payload': {'title': r.get('title'), 'department': r.get('department'), 'gcs_path': r.get('gcs_path')}})
+        try:
+            from adapters.qdrant_adapter import upsert_points as _adapter_upsert
+            ok = _adapter_upsert(points, QDRANT_COLLECTION, QDRANT_URL, dry_run=dry_run)
+        except Exception:
+            logging.exception('Qdrant adapter failed')
+            ok = False
 
-        ok = upsert_points_to_qdrant(points, QDRANT_COLLECTION, QDRANT_URL, dry_run=dry_run)
         if ok:
             logging.info('Simulated sync complete (ok=%s)', ok)
         else:
@@ -221,47 +205,20 @@ def main():
             return
 
         conn = psycopg2.connect(host=DB_HOST, user=DB_USER, password=pw, dbname=DB_NAME)
+
+    service = SyncOutboxService(QDRANT_COLLECTION, QDRANT_URL)
     try:
-        locked = acquire_advisory_lock(conn)
-        if not locked:
-            logging.error('Could not acquire advisory lock; another worker may be running')
-            return
-
         while True:
-            rows = fetch_batch_from_db(conn, batch_size)
-            if not rows:
-                logging.info('No documents with embeddings to sync')
+            ok = service.run_once(conn, batch_size=batch_size, dry_run=dry_run)
+            if not ok:
                 break
-
-            points = []
-            ids = []
-            for r in rows:
-                if not r['vector']:
-                    logging.warning('Document %s has no vector; skipping', r['id'])
-                    continue
-                points.append({'id': r['id'], 'vector': r['vector'], 'payload': {'title': r.get('title'), 'department': r.get('department'), 'gcs_path': r.get('gcs_path')}})
-                ids.append(r['id'])
-
-            if not points:
-                logging.info('No upsertable points in this batch')
-                break
-
-            ok = upsert_points_to_qdrant(points, QDRANT_COLLECTION, QDRANT_URL, dry_run=dry_run)
-            if ok:
-                mark_synced(conn, ids)
-            else:
-                logging.error('Failed to upsert points to Qdrant; aborting')
-                break
-
             if ns.once:
                 break
-
     finally:
         try:
-            release_advisory_lock(conn)
+            conn.close()
         except Exception:
             pass
-        conn.close()
 
 
 if __name__ == '__main__':

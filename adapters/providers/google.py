@@ -1,16 +1,41 @@
-"""Stub Google Cloud secrets adapter.
+"""Google Cloud secrets adapter (lightweight stub).
 
-This is a placeholder implementation. Replace with a real adapter that
-uses Google Secret Manager or ADC when implementing production support.
+This stub attempts a local-friendly lookup for secrets when running in
+cloud mode during development. It does NOT call GCP APIs. Replace with
+an implementation that uses `google-cloud-secret-manager` for real use.
 """
 from __future__ import annotations
 
+import os
+import logging
 from typing import Optional
+
+logger = logging.getLogger(__name__)
 
 
 class GoogleSecretsAdapter:
+    """A minimal adapter that reads environment variables as a fallback.
+
+    Lookup order for secret name `X`:
+      1. `X` (literal env var)
+      2. `GCP_X`
+      3. `GOOGLE_X`
+    """
+
     def get(self, name: str) -> Optional[str]:
-        raise NotImplementedError('Google Secrets Adapter not implemented. Implement adapters.providers.google.get_adapter to return a working adapter.')
+        if not name:
+            return None
+        # direct match
+        val = os.environ.get(name)
+        if val:
+            return val
+        # provider-prefixed fallbacks
+        for prefix in ('GCP_', 'GOOGLE_'):
+            val = os.environ.get(f'{prefix}{name}')
+            if val:
+                return val
+        logger.debug('GoogleSecretsAdapter: secret %s not found in env', name)
+        return None
 
 
 def get_adapter():

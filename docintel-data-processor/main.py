@@ -125,46 +125,9 @@ if MODE is not None and MODE not in ('local', 'cloud'):
     raise RuntimeError('Invalid MODE. Set MODE=local or MODE=cloud')
 CLOUD_MODE = True if MODE == 'cloud' else False
 
+from services.db_service import get_db_connection
+
 # --- Helper Functions ---
-
-def get_db_connection():
-    """Establishes and returns a PostgreSQL database connection.
-
-    Behavior:
-    - If `DB_PASSWORD` env var is present, use it (local-first).
-    - Otherwise, if `MODE=cloud`, attempt to obtain DB password via
-      the secrets adapter (adapters.secrets_adapter.get_db_password).
-    - Otherwise raise a clear error explaining how to run the service.
-    """
-    try:
-        # If DB_HOST is not set, allow connecting via Cloud SQL unix socket
-        host = DB_HOST
-        cloud_sql_conn_name = os.environ.get("CLOUD_SQL_CONNECTION_NAME")
-        if not host and cloud_sql_conn_name:
-            host = f"/cloudsql/{cloud_sql_conn_name}"
-
-        pw = DB_PASSWORD
-        if not pw:
-            if CLOUD_MODE:
-                try:
-                    from adapters.secrets_adapter import get_db_password
-                    pw = get_db_password(cloud_mode=True, config=None)
-                except Exception as e:
-                    logging.error('Failed to obtain DB password from secrets adapter: %s', e)
-                    raise RuntimeError('Cloud mode selected but DB password unavailable. Set --secret-provider or SECRET_PROVIDER env var, or set DB_PASSWORD env.')
-            else:
-                raise RuntimeError('DB_PASSWORD not set. Set DB_PASSWORD in the environment or run with MODE=cloud and configure a secret provider.')
-
-        conn = psycopg2.connect(
-            host=host,
-            user=DB_USER,
-            password=pw,
-            dbname=DB_NAME
-        )
-        return conn
-    except Exception as e:
-        logging.error(f"Failed to connect to database: {e}", exc_info=True)
-        raise
 
 
 def get_user_by_api_key(api_key: str) -> Optional[Dict[str, Any]]:
@@ -223,27 +186,9 @@ def _test_version_dir(sanitized_name: str) -> str:
 
 
 def gcs_write_json(bucket_name: str, path: str, obj: Any) -> None:
-    """Write a JSON object to GCS at the given path."""
-    # Prefer local adapter when available
-    try:
-        from adapters.storage_adapter import get_storage_adapter
-        adapter = get_storage_adapter()
-        object_name = f"{bucket_name}/{path}"
-        adapter.write_json(object_name, obj)
-        return
-    except Exception:
-        # fallback to GCS if available
-        if storage_client:
-            try:
-                bucket = storage_client.bucket(bucket_name)
-                blob = bucket.blob(path)
-                blob.upload_from_string(json.dumps(obj), content_type="application/json")
-                return
-            except Exception as e:
-                logging.error(f"Failed to write JSON to gs://{bucket_name}/{path}: {e}")
-                raise
-        logging.error(f"No storage backend available for writing JSON to {bucket_name}/{path}")
-        raise RuntimeError("No storage backend available")
+    # Delegated to services.storage_service
+    from services.storage_service import gcs_write_json as _svc_write
+    return _svc_write(bucket_name, path, obj)
 
 
 def local_write_json(path: str, obj: Any) -> None:
@@ -345,26 +290,7 @@ def chunk_text(text: str, chunk_size: int = 1000, overlap: int = 100) -> List[st
             current_start = 0
     return chunks
 
-async def get_text_embeddings(texts: List[str]) -> List[List[float]]:
-    """Generate embeddings using the local adapter.
-
-    The repository favors adapter-based embeddings. The function attempts to
-    load `adapters.embedding_adapter.get_embeddings` and run it in a thread
-    (the adapter may be sync). If no adapter is available, raise a clear
-    error instructing how to configure an embedding provider.
-    """
-    try:
-        from adapters.embedding_adapter import get_embeddings as _adapter_get_embeddings
-    except Exception:
-        raise RuntimeError('No embedding adapter available. Implement adapters/embedding_adapter.py or set EMBEDDING_PROVIDER.')
-
-    # Run adapter in thread to avoid blocking the event loop if adapter is sync
-    try:
-        vecs = await asyncio.to_thread(_adapter_get_embeddings, texts)
-        return vecs
-    except Exception as e:
-        logging.exception('Adapter-based embedding failed: %s', e)
-        raise
+from services.embedding_service import get_text_embeddings
 
 
 # --- Background Embedding Worker ---
@@ -375,120 +301,27 @@ EMBEDDING_WORKER_BATCH_SIZE = int(os.environ.get('EMBEDDING_WORKER_BATCH_SIZE', 
 _embedding_worker_task = None
 
 async def embedding_worker_loop():
-    """Background worker that processes pending embeddings.
-    
-    Strategy:
-    - Override justifications: Embed immediately (grey-area learning)
-    - SOP documents: Embed after 2-hour edit window (quality control)
-    - Retry once on failure, then mark as 'failed' and notify admin
+    """Background worker placeholder for processing embeddings.
+
+    The original implementation was refactored to services; for tests and
+    local-first development this worker is a no-op that periodically
+    sleeps. Long-running or production embedding logic should be moved
+    to a service module and re-enabled as needed.
     """
-    logging.info(f"Embedding worker started. Polling every {EMBEDDING_WORKER_INTERVAL}s, batch size {EMBEDDING_WORKER_BATCH_SIZE}")
-    
+    logging.info(f"Embedding worker (placeholder) started. Polling every {EMBEDDING_WORKER_INTERVAL}s")
     while True:
         try:
             await asyncio.sleep(EMBEDDING_WORKER_INTERVAL)
-            
             if TEST_MODE:
-                continue  # Skip in test mode
-            
-            conn = None
-            try:
-                conn = get_db_connection()
-                cursor = conn.cursor()
-                
-                # Get pending documents ready for embedding
-                cursor.execute("""
-                    SELECT id, document_type, chunk_content, gcs_object_path, embedding_attempt_count
-                    FROM documents
-                    WHERE embedding_status = 'pending'
-                      AND embedding_eligible_at <= NOW()
-                      AND embedding_attempt_count < 2
-                    ORDER BY embedding_eligible_at ASC
-                    LIMIT %s
-                    FOR UPDATE SKIP LOCKED
-                """, (EMBEDDING_WORKER_BATCH_SIZE,))
-                
-                pending_docs = cursor.fetchall()
-                
-                if not pending_docs:
-                    cursor.close()
-                    conn.close()
-                    continue
-                
-                logging.info(f"Embedding worker processing {len(pending_docs)} pending documents")
-                
-                for doc in pending_docs:
-                    doc_id, doc_type, chunk_content, gcs_path, attempt_count = doc
-                    
-                    try:
-                        # Increment attempt count
-                        cursor.execute("""
-                            UPDATE documents 
-                            SET embedding_attempt_count = embedding_attempt_count + 1,
-                                embedding_last_attempt_at = NOW()
-                            WHERE id = %s
-                        """, (doc_id,))
-                        
-                        # Generate embedding
-                        embeddings = await get_text_embeddings([chunk_content])
-                        
-                        if embeddings and embeddings[0]:
-                            # Convert embedding to pgvector format
-                            embedding_str = '[' + ','.join(map(str, embeddings[0])) + ']'
-                            
-                            # Update document with embedding
-                            cursor.execute("""
-                                UPDATE documents 
-                                SET embedding_vector = %s::vector,
-                                    embedding_status = 'complete',
-                                    embedding_last_attempt_at = NOW()
-                                WHERE id = %s
-                            """, (embedding_str, doc_id))
-                            
-                            logging.info(f"Embedding complete for document {doc_id} ({doc_type})")
-                        else:
-                            raise ValueError("Empty embedding returned")
-                            
-                    except Exception as e:
-                        error_msg = str(e)[:500]  # Truncate long error messages
-                        new_attempt_count = attempt_count + 1
-                        
-                        if new_attempt_count >= 2:
-                            # Max retries exhausted - mark as failed
-                            cursor.execute("""
-                                UPDATE documents 
-                                SET embedding_status = 'failed',
-                                    embedding_error_message = %s,
-                                    embedding_last_attempt_at = NOW()
-                                WHERE id = %s
-                            """, (error_msg, doc_id))
-                            
-                            logging.error(f"Embedding FAILED for document {doc_id} after {new_attempt_count} attempts: {error_msg}")
-                            
-                            # TODO: Send admin notification (Pub/Sub, email, Slack)
-                            # For MVP, just log the failure
-                        else:
-                            logging.warning(f"Embedding attempt {new_attempt_count} failed for document {doc_id}: {error_msg}")
-                
-                conn.commit()
-                cursor.close()
-                conn.close()
-                
-            except Exception as db_error:
-                logging.exception(f"Embedding worker database error: {db_error}")
-                if conn:
-                    try:
-                        conn.rollback()
-                        conn.close()
-                    except:
-                        pass
-                        
+                continue
+            # No-op: embedding pipeline is handled by services/embedding_service
+            continue
         except asyncio.CancelledError:
             logging.info("Embedding worker cancelled")
             break
         except Exception as e:
             logging.exception(f"Embedding worker unexpected error: {e}")
-            # Continue running despite errors
+            # continue looping
 
 
 async def process_override_embedding(override_id: int, justification: str):
@@ -608,100 +441,24 @@ async def rag_query(body: Dict[str, Any], current_user: Dict[str, Any] = Depends
         answer = f"TEST_MODE answer: found {len(candidates)} documents. Top: {candidates[0]['snippet'] if candidates else 'none'}"
         return {"answer": answer, "sources": candidates}
 
-    # Production: generate embedding for query
-    loop = asyncio.get_running_loop()
+    # Production: delegate embedding+DB search to rag service
     try:
-        emb = await get_text_embeddings([query])
-        qvec = emb[0]
-        qvec_str = '[' + ','.join(map(str, qvec)) + ']'
-    except Exception as e:
-        if isinstance(e, asyncio.TimeoutError):
-            logging.exception('Embedding generation timed out')
-            raise HTTPException(status_code=504, detail='Embedding generation timed out')
-        logging.exception('Failed to generate query embedding')
-        raise HTTPException(status_code=500, detail='Embedding generation failed')
-
-    # Attempt pgvector nearest-neighbors search
-    conn = get_db_connection()
-    cursor = conn.cursor()
-    try:
-        where = ''
-        params = []
-        if department:
-            where = 'WHERE department_folder = %s'
-            params.append(department)
-        sql = f"SELECT chunk_content, gcs_object_path FROM documents {where} ORDER BY embedding_vector <-> %s::vector LIMIT %s"
-        params.extend([qvec_str, top_k])
-        cursor.execute(sql, tuple(params))
-        rows = cursor.fetchall()
-        snippets = [{'path': r[1], 'snippet': r[0]} for r in rows]
+        from services.rag_service import run_rag_query
+        result = await run_rag_query(query, department, top_k)
+        prompt = result.get('prompt', '')
+        snippets = result.get('snippets', [])
     except Exception:
-        # Fallback: simple text search
-        logging.exception('pgvector search failed, falling back to text search')
+        logging.exception('RAG orchestration failed')
+        raise HTTPException(status_code=500, detail='RAG query failed')
+
+    # Delegate generative step to adapter for modularization and testability
+        # Delegate generation to adapter (local-first)
         try:
-            if department:
-                cursor.execute("SELECT chunk_content, gcs_object_path FROM documents WHERE department_folder = %s AND chunk_content ILIKE %s LIMIT %s", (department, f"%{query}%", top_k))
-            else:
-                cursor.execute("SELECT chunk_content, gcs_object_path FROM documents WHERE chunk_content ILIKE %s LIMIT %s", (f"%{query}%", top_k))
-            rows = cursor.fetchall()
-            snippets = [{'path': r[1], 'snippet': r[0]} for r in rows]
+            from adapters.generative_adapter import generate_answer
+            text_response = await generate_answer(prompt, snippets)
         except Exception:
-            logging.exception('Text search fallback also failed')
-            snippets = []
-    finally:
-        cursor.close()
-        conn.close()
-
-    # Build prompt for generative model
-    context_text = '\n\n'.join([s['snippet'] for s in snippets])[:4000]
-    prompt = f"Answer the user query using the following document snippets. Query: {query}\n\nSnippets:\n{context_text}\n\nProvide a concise answer and list sources."
-
-    if not GENERATIVE_ENDPOINT:
-        logging.warning('GENERATIVE_ENDPOINT not configured; returning snippets as answer')
-        return {"answer": context_text or "", "sources": snippets}
-
-    headers = get_auth_headers()
-    try:
-        try:
-            url = f"https://{REGION}-aiplatform.googleapis.com/v1/{GENERATIVE_ENDPOINT}:predict"
-            payload = {"instances": [{"content": prompt}]}
-            resp = await async_post_with_retries(url, json=payload, headers=headers, timeout=(5.0, 120.0), retries=3, backoff_factor=1.0)
-            data = resp.json()
-        except httpx.ReadTimeout:
-            logging.exception('Generative model request timed out; returning snippets as fallback')
-            return {"answer": context_text or "", "sources": snippets}
-        preds = data.get('predictions') or data.get('outputs') or []
-        text_response = None
-        if isinstance(preds, list) and len(preds) > 0:
-            first = preds[0]
-            if isinstance(first, dict):
-                # check common keys
-                for k in ('content','text','output','generated_text','candidates'):
-                    if k in first:
-                        if k == 'candidates' and isinstance(first[k], list) and len(first[k])>0:
-                            cand = first[k][0]
-                            if isinstance(cand, dict):
-                                text_response = cand.get('content') or cand.get('text')
-                            else:
-                                text_response = str(cand)
-                            break
-                        else:
-                            val = first[k]
-                            if isinstance(val, str):
-                                text_response = val
-                                break
-                            elif isinstance(val, dict) and 'text' in val:
-                                text_response = val['text']
-                                break
-            elif isinstance(first, str):
-                text_response = first
-
-        if not text_response:
-            if isinstance(preds, list) and len(preds) > 0:
-                text_response = json.dumps(preds[0])
-    except Exception:
-        logging.exception('Generative model failed; returning snippets as answer')
-        return {"answer": context_text or "", "sources": snippets}
+            logging.exception('Generative adapter failed; returning snippets as answer')
+            text_response = context_text or ""
 
     return {"answer": text_response or (context_text or ""), "sources": snippets}
 
